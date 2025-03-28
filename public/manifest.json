@@ -1,0 +1,36 @@
+{
+  "manifest_version": 2,
+  "name": "BUGS REPORT JIRA ",
+  "version": "1.0",
+  "description": "Une extension qui affiche une bulle d'erreur et compte les fautes grammaticales",
+  
+  "permissions": ["activeTab", "storage","tabs",  "http://*/",
+  "https://*/", "https://votre-chatbot.streamlit.app/"],
+ 
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "web_accessible_resources": [
+    "icon.png"
+],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+ "content_scripts": [
+    {
+      "matches": ["*://*.atlassian.net/*"],
+      "js": ["content.js"] 
+         }
+  ]
+}

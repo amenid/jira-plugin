@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Sélections</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .selection-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        select {
+            padding: 5px;
+        }
+        #errorBubble {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 10000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="selection-container">
+        <select id="select1">
+            <option value="TBX" selected>TechnicaBug X</option>
+        </select>
+        <select id="select2" onchange="validateSelection()">
+            <option value="">--</option>
+            <option value="JC">JC</option>
+            <option value="EF">EF</option>
+        </select>
+        <select id="select3" onchange="validateSelection()">
+            <option value="">--</option>
+            <option value="ipn">ipnext</option>
+            <option value="IPN">IPNext</option>
+        </select>
+        <select id="select5" onchange="validateSelection()">
+            <option value="">--</option>
+            <option value="I_B_O">infra_Bug_others</option>
+            <option value="T_B_O">TC_Bug_Others</option>
+            <option value="I_B_T">infra_Bug_Technica</option>
+            <option value="TC_B_T:R_S_C">TC_Bug_Technica:Refactor_spec_change</option>
+            <option value="TC_B_T:R_T_E">TC_Bug_Technica:Refactor_TC_error</option>
+            <option value="DUT_B">DUT_Bug</option>
+            <option value="n_f">no_fuSa</option>
+            <option value="f">fuSa</option>
+
+        </select>
+        <select id="select6" onchange="validateSelection()">
+            <option value="">--</option>
+            <option value="L1_B">L1_Bug</option>
+            <option value="L2_C">L2_Clearance</option>
+            <option value="L3_C">L3_Clearance</option>
+        </select>
+        <select id="select7" onchange="validateSelection()">
+            <option value="" disabled selected>Domain</option>
+            </select>
+        
+        <select id="select8" onchange="validateSelection()">
+            <option value="" disabled selected>Sample</option>
+            <option value="D0_sample">D0_sample</option>
+        </select>
+        <select id="select9" onchange="validateSelection()">
+            <option value="" disabled selected>Domain Label</option>
+            <option value="diag">diag</option>
+            <option value="DTC">DTC</option>
+            <option value="COMM">COMM</option>
+            <option value="AMTS">AMTS</option>
+            <option value="Sec">Security</option>
+        </select>
+    </div>
+
+    <script>
+        let errorBubble;
+        let errorCount = 0;
+
+        function createErrorBubble() {
+            if (!errorBubble) {
+                errorBubble = document.createElement("div");
+                errorBubble.id = "errorBubble";
+                document.body.appendChild(errorBubble);
+            }
+            updateErrorBubble();
+        }
+
+        function updateErrorBubble() {
+            errorBubble.textContent = errorCount > 0 ? errorCount : "";
+            errorBubble.style.display = errorCount > 0 ? "flex" : "none";
+        }
+
+        function validateSelection() {
+            errorCount = 0;
+
+            let select2 = document.getElementById("select2").value;
+            let select3 = document.getElementById("select3").value;
+            let select5 = document.getElementById("select5").value;
+            let select6 = document.getElementById("select6");
+            let select7 = document.getElementById("select7").value;
+            let select8 = document.getElementById("select8").value;
+            let select9 = document.getElementById("select9").value;
+
+            // Vérifier les champs obligatoires
+            if (select2 === "") errorCount++;
+            if (select3 === "") errorCount++;
+            if (select7 === "") errorCount++;
+            if (select8 === "") errorCount++;
+            if (select9 === "") errorCount++;
+
+            // Auto-sélection de L1_B si I_B_O, T_B_O, I_B_T ou T_B_T est sélectionné
+            if (["I_B_O", "T_B_O", "I_B_T", "TC_B_T:R_S_C","TC_B_T:R_T_E", "DUT_B"].includes(select5)) {
+                select6.value = "L1_B";
+            }
+
+            // Auto-sélection de L2_C ou L3_C si n_f ou f est sélectionné
+            if (["n_f", "f"].includes(select5)) {
+                let randomChoice = Math.random() < 0.5 ? "L2_C" : "L3_C";
+                select6.value = randomChoice;
+            }
+
+            createErrorBubble();
+        }
+        const validActivities = ["Nightly", "Coverage", "Periodic_2h", "Weekly", "FV", "PreInt", "PreGate"];
+const selectActivity = document.getElementById("select7");
+
+validActivities.forEach(activity => {
+    let option = document.createElement("option");
+    option.value = activity;
+    option.textContent = activity;
+    selectActivity.appendChild(option);
+});
+
+        // Exécuter la validation dès le chargement de la page
+        window.onload = validateSelection;
+        function categorization() {
+    const selectElement = document.getElementById("select8");
+    if (selectElement && selectElement.value === "D0_sample") {
+        return "D0";
+    }
+    return null; // Retourne null si la condition n'est pas remplie
+}
+function initializeEventListeners() {
+    const select8Element = document.getElementById("select8");
+    
+    if (select8Element) {
+        select8Element.addEventListener("change", () => {
+            const result = categorization();
+            if (result) {
+                console.log(`Catégorisation : ${result}`);
+            }
+        });
+    }}
+</script>
+
+</body>
+</html>

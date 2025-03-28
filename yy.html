@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de la fonction categorization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        label {
+            font-weight: bold;
+            color: green;
+        }
+        #idCategorization {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test de la fonction categorization</h1>
+
+    <!-- Menu déroulant pour tester categorization() -->
+    <label for="select8">Sélectionnez une option :</label>
+    <select id="select8">
+        <option value="none">-- Choisissez une option --</option>
+        <option value="D0_sample">D0_sample</option>
+        <option value="other">Autre option</option>
+    </select>
+
+    <!-- Zone pour afficher le résultat -->
+    <div id="idCategorization"></div>
+
+    <script>
+        // Fonction categorization
+        function categorization() {
+            const selectElement = document.getElementById("select8");
+            if (selectElement && selectElement.value === "D0_sample") {
+                return "D0";
+            }
+            return null; // Retourne null si la condition n'est pas remplie
+        }
+
+        // Fonction pour afficher le résultat dans l'élément avec l'ID "idCategorization"
+        function displayCategorization() {
+            const result = categorization();
+            const resultElement = document.getElementById("idCategorization");
+
+            if (resultElement) {
+                if (result) {
+                    resultElement.innerHTML = `<label for="categorization">${result}</label>`;
+                } else {
+                    resultElement.innerHTML = `<label for="categorization">Aucune catégorisation trouvée.</label>`;
+                }
+            }
+        }
+
+        // Écouteur d'événement pour le menu déroulant
+        const selectElement = document.getElementById("select8");
+        if (selectElement) {
+            selectElement.addEventListener("change", displayCategorization);
+        }
+    </script>
+</body>
+</html>

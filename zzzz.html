@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dropdown Multiple avec Select2, Bulle d'Erreur et Alerte Rouge</title>
+  <!-- Styles Select2 -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+  <style>
+    /* Personnalisation supplémentaire */
+    .select2-container--default .select2-selection--multiple {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 5px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+      background-color: #e4e4e4;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+
+    /* Style pour la bulle d'alerte */
+    #alertBubble {
+      position: fixed;
+      bottom: 20px;
+      left: 20px; /* Position à gauche */
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 25px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      z-index: 10000;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    #alertBubble.visible {
+      opacity: 1;
+    }
+
+    /* Style pour la bulle d'erreur */
+    #errorBubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px; /* Position à droite */
+      width: 60px;
+      height: 60px;
+      background-color: #ff4444;
+      color: white;
+      border-radius: 50%;
+      display: none; /* Masquée par défaut */
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      font-size: 20px;
+      font-weight: bold;
+      z-index: 10000;
+    }
+
+    /* Style pour l'alerte rouge */
+    #redAlert {
+      position: fixed;
+      bottom: 80px; /* Position au-dessus de la bulle d'erreur */
+      right: 20px; /* Aligné à droite */
+      width: 20px;
+      height: 20px;
+      background-color: red;
+      border-radius: 50%;
+      display: none; /* Masquée par défaut */
+      z-index: 10000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Dropdown multiple -->
+  <select id="myDropdown" multiple style="width: 100%;">
+    <option value="TBX">TBX</option>
+    <option value="JC">JC</option>
+    <option value="EF">EF</option>
+    <option value="ipnext">ipnext</option>
+    <option value="IPNext">IPNext</option>
+    <option value="I_B_O">I_B_O</option>
+    <option value="T_B_O">T_B_O</option>
+    <option value="I_B_T">I_B_T</option>
+    <option value="TC_B_T:R_S_C">TC_B_T:R_S_C</option>
+    <option value="TC_B_T:R_T_E">TC_B_T:R_T_E</option>
+    <option value="DUT_B">DUT_B</option>
+    <option value="n_f">n_f</option>
+    <option value="f">f</option>
+    <option value="L1_B">L1_B</option>
+    <option value="L2_C">L2_C</option>
+    <!-- Activités valides -->
+    <option value="Nightly">Nightly</option>
+    <option value="Coverage">Coverage</option>
+    <option value="Periodic_2h">Periodic_2h</option>
+    <option value="Weekly">Weekly</option>
+    <option value="FV">FV</option>
+    <option value="PreInt">PreInt</option>
+    <option value="PreGate">PreGate</option>
+    <!-- D0_sample -->
+    <option value="D0_sample_1">D0_sample</option>
+   
+    <!-- Diagnostics -->
+    <option value="diag">diag</option>
+    <option value="DTC">DTC</option>
+    <option value="COMM">COMM</option>
+    <option value="AMTS">AMTS</option>
+    <option value="Security">Security</option>
+  </select>
+
+  <!-- Bulle d'alerte -->
+  <div id="alertBubble"></div>
+
+  <!-- Bulle d'erreur -->
+  <div id="errorBubble"></div>
+
+  <!-- Alerte rouge -->
+  <div id="redAlert"></div>
+
+  <!-- Scripts Select2 et jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    $(document).ready(function() {
+      // Initialiser Select2
+      const dropdown = $('#myDropdown').select2({
+        placeholder: "Sélectionnez des options", // Texte d'espace réservé
+        allowClear: true, // Permettre de tout désélectionner
+      });
+
+      // Variables pour la bulle d'erreur et l'alerte rouge
+      let errorBubble;
+      let errorCount = 0;
+      const redAlert = $('#redAlert');
+
+      // Fonction pour créer la bulle d'erreur
+      function createErrorBubble() {
+        if (!errorBubble) {
+          errorBubble = document.createElement("div");
+          errorBubble.id = "errorBubble";
+          document.body.appendChild(errorBubble);
+        }
+        updateErrorBubble();
+      }
+
+      // Fonction pour mettre à jour la bulle d'erreur
+      function updateErrorBubble() {
+        errorBubble.textContent = errorCount > 0 ? errorCount : "";
+        errorBubble.style.display = errorCount > 0 ? "flex" : "none";
+        redAlert.css('display', errorCount > 0 ? 'block' : 'none'); // Afficher ou masquer l'alerte rouge
+      }
+
+      // Fonction pour afficher un message dans la bulle d'alerte
+      function showAlertBubble(message, duration = 3000) {
+        const alertBubble = $('#alertBubble');
+        alertBubble.text(message).addClass('visible');
+        setTimeout(() => {
+          alertBubble.removeClass('visible');
+        }, duration);
+      }
+
+      // Fonction pour simuler une erreur (exemple : détection de "roi=uge")
+      function simulateErrorDetection() {
+        // Simuler une erreur (par exemple, détecter "roi=uge")
+        const hasError = Math.random() > 0.5; // Simule une erreur aléatoire
+        if (hasError) {
+          errorCount++; // Incrémenter le compteur d'erreurs
+          createErrorBubble(); // Créer ou mettre à jour la bulle d'erreur
+        } else {
+          errorCount = 0; 
+          updateErrorBubble(); // Mettre à jour la bulle d'erreur
+        }
+      }
+
+      setInterval(simulateErrorDetection, 5000);
+
+      applyRules();
+
+      dropdown.on('select2:select', function(e) {
+        const selectedValue = e.params.data.id;
+
+        if (selectedValue === 'JC') {
+          if (dropdown.val().includes('EF')) {
+            dropdown.val(dropdown.val().filter(val => val !== 'EF')).trigger('change');
+            showAlertBubble('JC est déjà sélectionné. EF a été désélectionné.');
+          }
+        }
+
+        if (selectedValue === 'EF') {
+          if (dropdown.val().includes('JC')) {
+            dropdown.val(dropdown.val().filter(val => val !== 'JC')).trigger('change');
+            showAlertBubble('EF est déjà sélectionné. JC a été désélectionné.');
+          }
+        }
+
+        if (selectedValue === 'ipnext') {
+          if (dropdown.val().includes('IPNext')) {
+            dropdown.val(dropdown.val().filter(val => val !== 'IPNext')).trigger('change');
+            showAlertBubble('ipnext est déjà sélectionné. IPNext a été désélectionné.');
+          }
+        }
+
+        if (selectedValue === 'IPNext') {
+          if (dropdown.val().includes('ipnext')) {
+            dropdown.val(dropdown.val().filter(val => val !== 'ipnext')).trigger('change');
+            showAlertBubble('IPNext est déjà sélectionné. ipnext a été désélectionné.');
+          }
+        }
+
+        const autoSelectL1B = ["I_B_O", "T_B_O", "I_B_T", "TC_B_T:R_S_C", "TC_B_T:R_T_E", "DUT_B"];
+        if (autoSelectL1B.includes(selectedValue)) {
+          const optionsToDeselect = ["L2_C", "n_f", "f"];
+          const newValues = dropdown.val().filter(val => !optionsToDeselect.includes(val));
+          if (!newValues.includes('L1_B')) {
+            newValues.push('L1_B');
+          }
+          dropdown.val(newValues).trigger('change');
+          showAlertBubble('L1_B a été automatiquement sélectionné. L2_C, n_f et f ont été désélectionnés.');
+        }
+
+        const autoSelectL2C = ["n_f", "f"];
+        if (autoSelectL2C.includes(selectedValue)) {
+          const optionsToDeselect = ["L1_B", "I_B_O", "T_B_O", "I_B_T", "TC_B_T:R_S_C", "TC_B_T:R_T_E", "DUT_B"];
+          const newValues = dropdown.val().filter(val => !optionsToDeselect.includes(val));
+          if (!newValues.includes('L2_C')) {
+            newValues.push('L2_C');
+          }
+          dropdown.val(newValues).trigger('change');
+          showAlertBubble('L2_C a été automatiquement sélectionné. L1_B et les options I_B_O, T_B_O, I_B_T, TC_B_T:R_S_C, TC_B_T:R_T_E, DUT_B ont été désélectionnés.');
+        }
+
+        // Si une activité valide est sélectionnée, désélectionner les autres activités valides
+        const validActivities = ["Nightly", "Coverage", "Periodic_2h", "Weekly", "FV", "PreInt", "PreGate"];
+        if (validActivities.includes(selectedValue)) {
+          const otherActivities = validActivities.filter(activity => activity !== selectedValue);
+          const newValues = dropdown.val().filter(val => !otherActivities.includes(val));
+          dropdown.val(newValues).trigger('change');
+          showAlertBubble(`L'activité ${selectedValue} a été sélectionnée. Les autres activités ont été désélectionnées.`);
+        }
+
+        // Si une option D0_sample est sélectionnée, désélectionner les autres options D0_sample
+        const d0Samples = ["D0_sample"];
+        if (d0Samples.includes(selectedValue)) {
+          const otherSamples = d0Samples.filter(sample => sample !== selectedValue);
+          const newValues = dropdown.val().filter(val => !otherSamples.includes(val));
+          dropdown.val(newValues).trigger('change');
+          showAlertBubble(`L'option ${selectedValue} a été sélectionnée. Les autres options D0_sample ont été désélectionnées.`);
+        }
+
+        // Si une option de diagnostic est sélectionnée, désélectionner les autres options de diagnostic
+        const diagnostics = ["diag", "DTC", "COMM", "AMTS", "Security"];
+        if (diagnostics.includes(selectedValue)) {
+          const otherDiagnostics = diagnostics.filter(diagnostic => diagnostic !== selectedValue);
+          const newValues = dropdown.val().filter(val => !otherDiagnostics.includes(val));
+          dropdown.val(newValues).trigger('change');
+          showAlertBubble(`L'option ${selectedValue} a été sélectionnée. Les autres options de diagnostic ont été désélectionnées.`);
+        }
+      });
+
+      // Fonction pour appliquer les règles
+      function applyRules() {
+        // 1. TBX est sélectionné par défaut
+        dropdown.val('TBX').trigger('change');
+      }
+    });
+  </script>
+</body>
+</html>

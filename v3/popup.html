@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUGS REPORT JIRA </title>
+        <link rel="stylesheet" href="popup.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            width: 250px;
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        h1 {
+            font-size: 18px;
+            text-align: center;
+        }
+        #injectBtn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #injectBtn:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #555;
+        }
+        #status.success {
+            color: green;
+        }
+        #status.error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Extension de vérification</h1>
+    <div id="status"></div>
+    <button id="afficherBulle">Afficher la bulle</button>
+
+
+<script src="https://unpkg.com/webextension-polyfill@latest/dist/browser-polyfill.min.js"></script>
+    <script src="popup.js" defer></script>
+
+</body>
+</html>
+
+
