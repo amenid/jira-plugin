@@ -15,17 +15,18 @@ function createErrorBubble() {
         right: "20px",
         width: "60px",
         height: "60px",
-        backgroundColor: "#fff",
+        backgroundColor: "rgba(255, 255, 255, 0.9)", // Added transparency
         color: "black",
         borderRadius: "50%",
-        boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+        boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset", // Enhanced shadow for bubble effect
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         transition: "all 0.3s ease",
         zIndex: "10000",
         border: "2px solid transparent",
-        cursor: "pointer"
+        cursor: "pointer",
+        background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))" // Gradient for bubble shine
     });
 
     // Contenu de la bulle
@@ -39,42 +40,57 @@ function createErrorBubble() {
     const icon = document.createElement("img");
     icon.id = "bubbleIcon";
     icon.src = browser.runtime.getURL("icon.png");
-    icon.style.width = "30px";
-    icon.style.height = "30px";
-    icon.style.display = "block";
+    // Remplir toute la bulle avec l'icône
+    Object.assign(icon.style, {
+        width: "100%",             // Utilise 100% de la largeur du conteneur
+        height: "100%",            // Utilise 100% de la hauteur du conteneur
+        display: "block",
+        borderRadius: "50%",       // Garde l'image circulaire comme la bulle
+        objectFit: "cover",        // Assure que l'image couvre toute la zone sans déformation
+        padding: "0",              // Supprime tout padding
+        margin: "0",               // Supprime toutes les marges
+        position: "absolute",      // Positionnement absolu pour remplir l'espace parent
+        top: "0",
+        left: "0"
+    });
+
 
     const text = document.createElement("span");
     text.id = "errorCount";
     text.textContent = "!";
     text.style.display = "none";
+    text.style.fontSize = "24px";
+    text.style.fontWeight = "bold";
 
     content.appendChild(icon);
     content.appendChild(text);
     errorBubble.appendChild(content);
-
-    // Bouton "X" pour fermer la bulle
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "✖";
-    closeBtn.style.cssText = `
-        position: absolute;
-        top: -10px;
-        right: -10px;
-        width: 25px;
-        height: 25px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    closeBtn.addEventListener("click", () => {
-        errorBubble.remove();
-    });
-
+// Bouton "X" pour fermer la bulle
+const closeBtn = document.createElement("button");
+closeBtn.textContent = "✖";
+closeBtn.style.cssText = `
+    position: absolute;
+    top: 0px;                // Positionnement en haut
+    right: 0px;              // Positionnement à droite
+    width: 18px;             // Petite taille
+    height: 18px;            // Petite taille
+    background: #ff4444;     // Fond rouge
+    color: white;
+    border: none;
+    border-radius: 50%;      // Forme circulaire
+    cursor: pointer;
+    font-size: 10px;         // Police plus petite pour la croix
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transform: translate(50%, -50%); // Déplace la moitié du bouton en dehors de la bulle
+    z-index: 10001;          // S'assure que le bouton est au-dessus de la bulle
+`;
+closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation(); // Empêche le déclenchement de l'événement de clic sur la bulle
+    errorBubble.remove();
+});
     errorBubble.appendChild(closeBtn);
     document.body.appendChild(errorBubble);
 
@@ -113,24 +129,49 @@ function createErrorBubble() {
 
    return errorBubble;
 }
-
 // Mise à jour dynamique de la bulle
-function updateErrorBubble(errorCount, errors) {
+function updateErrorBubble(errorCount) {
     const bubble = document.getElementById("errorBubble") || createErrorBubble();
     const icon = document.getElementById("bubbleIcon");
     const text = document.getElementById("errorCount");
 
     if (errorCount > 0) {
-        bubble.style.backgroundColor = "#ff4444";
-        bubble.style.borderColor = "#ff0000";
-        icon.style.display = "none";
-        text.style.display = "block";
+        // Si des erreurs sont détectées
+        Object.assign(bubble.style, {
+            backgroundColor: "#ff4444",
+            borderColor: "#ff0000",
+            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
+        });
+        icon.style.display = "none"; // Masquer l'icône
+        text.style.display = "block"; // Afficher le nombre d'erreurs
         text.textContent = `${errorCount}`;
+        
+        // Ajouter un effet de pulsation
+        bubble.style.animation = "pulse 2s infinite";
+        if (!document.getElementById("bubbleAnimation")) {
+            const style = document.createElement("style");
+            style.id = "bubbleAnimation";
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
     } else {
-        bubble.style.backgroundColor = "#fff";
-        bubble.style.borderColor = "#00ff00";
-        icon.style.display = "block";
-        text.style.display = "none";
+        // Si aucune erreur n'est détectée
+        Object.assign(bubble.style, {
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderColor: "#00ff00",
+            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
+            animation: "none"
+        });
+        icon.style.display = "block"; // Afficher l'icône
+        text.style.display = "none"; // Masquer le nombre d'erreurs
     }
 }
 
