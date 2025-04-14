@@ -1,309 +1,208 @@
-/*let scriptInjecte = false;
-var timeoutId; // Déclaration unique de timeoutId, au niveau global, avant toute fonction
-
 document.addEventListener('DOMContentLoaded', function () {
-    const injectBtn = document.getElementById('injectBtn');
-    const statusDiv = document.getElementById('status');
-
-    // Ajouter un événement de clic pour le bouton injectBtn
-    injectBtn.addEventListener("click", async () => {
-        try {
-            // Récupérer l'onglet actif dans la fenêtre actuelle
-            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-
-            if (tabs.length === 0) {
-                console.error("❌ Aucun onglet actif !");
-                statusDiv.textContent = "Erreur : Aucun onglet actif";
-                statusDiv.className = 'error';
-                return;
-            }
-
-            const tabId = tabs[0].id;
-
-            let isScriptActive = false;
-            try {
-                let response = await browser.tabs.sendMessage(tabId, { action: "ping" });
-                if (response && response.status === "active") {
-                    isScriptActive = true;
+    // Éviter la duplication de l'événement DOMContentLoaded
+    // Au chargement du popup, envoyer automatiquement le message pour afficher la bulle
+    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        if (tabs && tabs[0]) {
+            // Envoyer le message pour afficher la bulle automatiquement
+            browser.tabs.sendMessage(tabs[0].id, { action: "toggleChatBubble" }, function(response) {
+                if (browser.runtime.lastError) {
+                    console.error("Erreur lors de l'envoi du message:", browser.runtime.lastError);
+                    
+                    // Tentative d'injecter et d'exécuter la fonction directement si le message échoue
+                    browser.scripting.executeScript({
+                        target: { tabId: tabs[0].id },
+                        function: function() {
+                            // Vérifier si la bulle existe déjà
+                            if (document.getElementById("chatBubble")) {
+                                document.getElementById("chatBubble").style.display = "flex";
+                                document.getElementById("chatBubble").style.visibility = "visible";
+                            } else if (window.createBubbleChat) {
+                                // Si la fonction existe, l'appeler
+                                window.createBubbleChat();
+                            } else {
+                                console.error("Impossible d'afficher la bulle de chat");
+                            }
+                        }
+                    });
+                } else if (response && response.success) {
+                    console.log("Bulle de chat affichée avec succès");
                 }
-            } catch (error) {
-                console.log("ℹ️ Content script non actif, injection en cours...");
-            }
-            
-            if (!isScriptActive) {
-                await browser.tabs.executeScript(tabId, { file: "content.js" });
-                setTimeout(() => {
-                    envoyerMessage(tabId);
-                }, 500); // Attendre un peu avant d'envoyer le message
-            } else {
-                envoyerMessage(tabId);
-            }
-            
-        } catch (error) {
-            console.error("❌ Erreur lors de la récupération des onglets :", error);
-            statusDiv.textContent = "Erreur d'accès aux onglets : " + error.message;
-            statusDiv.className = 'error'; // Appliquer la classe d'erreur
+            });
         }
     });
+    
+    // Fermer le popup après une courte période
+    setTimeout(() => {
+        window.close();
+    }, 300);
+
+    // S'assurer que les éléments existent avant d'y accéder
+    browser.storage.sync.get('notificationSettings', function(result) {
+        const settings = result.notificationSettings || {};
+        updateNotificationStatus(settings);
+    });
+
+    // Vérifier si les éléments existent avant d'ajouter les écouteurs d'événements
+    if (document.getElementById('configureNotifications')) {
+        document.getElementById('configureNotifications').addEventListener('click', openConfigPage);
+    }
+    if (document.getElementById('testNotification')) {
+        document.getElementById('testNotification').addEventListener('click', sendTestNotification);
+    }
+    if (document.getElementById('resetSettings')) {
+        document.getElementById('resetSettings').addEventListener('click', resetSettings);
+    }
 });
 
-// Fonction pour envoyer un message au content script
-async function envoyerMessage(tabId) {
-    try {
-        await browser.tabs.sendMessage(tabId, { action: "showBubble" });
-        console.log("✅ Message envoyé au content script.");
-        document.getElementById('status').textContent = "Message envoyé au content script.";
-        document.getElementById('status').className = 'success'; // Appliquer la classe de succès
-    } catch (error) {
-        console.error("❌ Erreur lors de l’envoi du message au content script :", error);
-        document.getElementById('status').textContent = "Erreur lors de l’envoi du message.";
-        document.getElementById('status').className = 'error'; // Appliquer la classe d'erreur
-    }
-}
-
-// Fonction pour envoyer le texte de la page au script content.js
-function sendTextToContentScript(tabId) {
-    // Utiliser executeScript pour récupérer le texte de la page
-    browser.tabs.executeScript(tabId, { code: "document.body.innerText" })
-    .then(result => {
-        if (result && result[0]) {
-            console.log("Texte récupéré : ", result[0]);
-            return browser.tabs.sendMessage(tabId, {
-                action: "showBubble",
-                texte: result[0]
-            });
-        } else {
-            throw new Error("Aucun texte récupéré");
-        }
-    })
-    .catch(error => {
-        console.error("Erreur lors de la récupération du texte : ", error);
-        document.getElementById('status').textContent = "Erreur lors de la récupération du texte.";
-        document.getElementById('status').className = 'error';
-    });
-
-}
-
-// Ajout d'un événement pour activer/désactiver la correction
-document.getElementById("toggleCorrectionButton").addEventListener("click", async function () {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length === 0) {
-        console.error("❌ Aucun onglet actif !");
+// Update notification status display
+function updateNotificationStatus(settings) {
+    const statusDiv = document.getElementById('notificationStatus');
+    // Vérifier si l'élément existe
+    if (!statusDiv) {
+        console.error("L'élément avec l'ID 'notificationStatus' n'existe pas");
         return;
     }
-    const tabId = tabs[0].id;
-    // Activer ou désactiver la correction
-    browser.tabs.sendMessage(tabId, { action: "toggleCorrection" });
-    // Envoyer le texte après l'activation/désactivation
-    sendTextToContentScript(tabId);
-});
+    
+    let statusHtml = '';
 
-// Dans popup.js ou le fichier d'injection
-if (document.getElementById('myExtensionBubble')) {
-    console.log("✅ Content script déjà actif !");
-} else {
-    // Code pour injecter le script si ce n'est pas déjà fait
-    browser.tabs.executeScript({ file: "content.js" })
-        .then(() => console.log("✅ Script injecté"))
-        .catch(error => console.error("❌ Erreur lors de l'injection du script", error));
-}*/
-/*document.addEventListener('DOMContentLoaded', function () {
-    const injectBtn = document.getElementById('injectBtn');
-    const toggleCorrectionBtn = document.getElementById('toggleCorrectionButton');
-    const statusDiv = document.getElementById('status');
-    const checkNowBtn = document.getElementById("checkNow");
-
-    // Vérifier si les éléments existent avant d'ajouter des écouteurs
-    if (injectBtn) {
-        injectBtn.addEventListener("click", function () {
-            browser.runtime.sendMessage({ action: "injectScript" }, function (response) {
-                if (response && response.status === "ok") {
-                    statusDiv.textContent = "Script injecté avec succès !";
-                    statusDiv.className = "success";
-                } else {
-                    statusDiv.textContent = "Erreur: " + (response ? response.message : "Aucune réponse");
-                    statusDiv.className = "error";
-                }
-            });
-        });
+    // Check which notifications are enabled
+    const enabledCount = [
+        settings.notifyOnComment, 
+        settings.notifyOnLabel,
+        settings.notifyOnDueDate,
+        settings.notifyOnSprintEnd
+    ].filter(Boolean).length;
+    
+    const totalCount = 4;
+    
+    if (enabledCount === totalCount) {
+        statusHtml = '<p>✅ All notifications are active</p>';
+    } else if (enabledCount === 0) {
+        statusHtml = '<p>❌ All notifications are disabled</p>';
     } else {
-        console.warn("L'élément injectBtn n'existe pas.");
+        statusHtml = `<p>⚠️ ${enabledCount}/${totalCount} notifications active</p>`;
     }
+    
+    // Add notification method info
+    if (settings.notificationMethod) {
+        let methodIcon = '';
+        switch(settings.notificationMethod) {
+            case 'teams':
+                methodIcon = '👥 Microsoft Teams';
+                break;
+            case 'email':
+                methodIcon = '📧 Email';
+                break;
+            case 'both':
+                methodIcon = '📧👥 Email & Teams';
+                break;
+            default:
+                methodIcon = settings.notificationMethod;
+        }
+        statusHtml += `<p>Notification method: ${methodIcon}</p>`;
+    }
+    
+    statusDiv.innerHTML = statusHtml + '<button id="configureNotifications">Configure Notifications</button>';
+    
+    // Ajouter l'écouteur d'événement après avoir mis à jour le HTML
+    const configButton = document.getElementById('configureNotifications');
+    if (configButton) {
+        configButton.addEventListener('click', openConfigPage);
+    }
+}
 
-    if (toggleCorrectionBtn) {
-        toggleCorrectionBtn.addEventListener("click", function () {
-            browser.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    const tabId = tabs[0].id;
-                    browser.tabs.sendMessage(tabId, { action: "toggleCorrection" }, function (response) {
-                        console.log("Réponse toggleCorrection :", response);
-                    });
-                }
-            });
+// Open configuration page
+function openConfigPage() {
+    // Find the current active tab
+    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        const activeTab = tabs[0];
+        
+        // Send message to content script to show settings
+        browser.tabs.sendMessage(activeTab.id, {
+            action: "showBubble",
+            showSettings: true
         });
-    } else {
-        console.warn("L'élément toggleCorrectionButton n'existe pas.");
-    }
-
-    if (checkNowBtn) {
-        checkNowBtn.addEventListener("click", () => {
-            browser.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs.length > 0) {
-                    browser.tabs.sendMessage(tabs[0].id, { action: "checkText" });
-                }
-            });
-        });
-    } else {
-        console.warn("L'élément checkNow n'existe pas.");
-    }
-});
-
-document.addEventListener('DOMContentLoaded', function () {
-    const injectBtn = document.getElementById('injectBtn');
-    const statusDiv = document.getElementById('status');
-
-    if (injectBtn) {
-        injectBtn.addEventListener("click", function () {
-            browser.runtime.sendMessage({ action: "injectScript" }, function (response) {
-                console.log("📩 Réponse du background :", response);
-                if (response && response.status === "ok") {
-                    statusDiv.textContent = "✅ Script injecté avec succès !";
-                    statusDiv.className = "success";
-                } else {
-                    statusDiv.textContent = "❌ Erreur: " + (response ? response.message : "Aucune réponse");
-                    statusDiv.className = "error";
-                }
-            });
-        });
-    } else {
-        console.warn("⚠️ Le bouton injectBtn n'existe pas.");
-    }
-});*/
-document.addEventListener('DOMContentLoaded', function () {
-    // Éléments de l'interface
-    const injectBtn = document.getElementById('injectBtn');
-    const toggleCorrectionBtn = document.getElementById('toggleCorrectionButton');
-    const statusDiv = document.getElementById('status');
-    const checkNowBtn = document.getElementById('checkNow');
-    const afficherBulleBtn = document.getElementById('afficherBulle');
-
-    // État global de la correction
-    let correctionActive = true;
-
-    // Initialisation de l'état depuis le stockage
-    browser.storage.local.get('correctionActive').then(({ correctionActive: stored }) => {
-        correctionActive = stored !== false;
-        updateToggleButton();
+        
+        // Close the popup
+        window.close();
     });
+}
 
-    // Gestion du bouton d'injection
-    if (injectBtn) {
-        injectBtn.addEventListener("click", async function () {
-            try {
-                const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-                if (!tabs.length) {
-                    throw new Error("Aucun onglet actif");
-                }
-
-                const response = await browser.runtime.sendMessage({ action: "injectScript" });
-                
-                if (response && response.status === "ok") {
-                    updateStatus("✅ Script injecté avec succès !", "success");
-                    // Activer automatiquement la vérification après l'injection
-                    await browser.tabs.sendMessage(tabs[0].id, { 
-                        action: "showBubble",
-                        correctionActive: correctionActive
-                    });
-                } else {
-                    throw new Error(response ? response.message : "Aucune réponse");
-                }
-            } catch (error) {
-                updateStatus(`❌ Erreur: ${error.message}`, "error");
-                console.error("Erreur lors de l'injection:", error);
-            }
-        });
-    }
-
-    // Gestion du bouton de basculement de correction
-    if (toggleCorrectionBtn) {
-        toggleCorrectionBtn.addEventListener("click", async function () {
-            correctionActive = !correctionActive;
+// Send a test notification
+function sendTestNotification() {
+    // Find the current active tab
+    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        const activeTab = tabs[0];
+        
+        // Get current user info
+        browser.storage.sync.get('notificationSettings', function(result) {
+            const settings = result.notificationSettings || {};
             
-            try {
-                // Sauvegarder l'état
-                await browser.storage.local.set({ correctionActive });
-                
-                // Mettre à jour l'interface
-                updateToggleButton();
-                
-                // Envoyer le nouvel état au content script
-                const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-                if (tabs.length > 0) {
-                    await browser.tabs.sendMessage(tabs[0].id, { 
-                        action: "toggleCorrection",
-                        state: correctionActive
-                    });
-                    
-                    updateStatus(
-                        correctionActive ? "✅ Correction activée" : "⏸️ Correction désactivée",
-                        "success"
-                    );
-                }
-            } catch (error) {
-                updateStatus("❌ Erreur lors du changement d'état", "error");
-                console.error("Erreur:", error);
-            }
+            // Prepare test notification
+            const testTicketInfo = {
+                key: "TEST-123",
+                summary: "Test Notification Ticket",
+                assignee: "You",
+                reporter: "Extension",
+                status: "Testing",
+                project: "TEST",
+                url: activeTab.url,
+                dueDate: new Date().toLocaleDateString(),
+                sprint: "Test Sprint (ends in 5 days)",
+                labels: ["test", "notification"]
+            };
+            
+            // Send test message to background script
+            browser.runtime.sendMessage({
+                action: settings.notificationMethod === "email" ? "sendEmailNotification" : "sendTeamsNotification",
+                recipient: "you",
+                subject: "Test Notification from Jira Extension",
+                message: "This is a test notification to verify that your notification settings are working correctly.",
+                payload: {
+                    "@type": "MessageCard",
+                    "@context": "http://schema.org/extensions",
+                    "themeColor": "0076D7",
+                    "summary": "Test notification",
+                    "sections": [{
+                        "activityTitle": "**Test Notification**",
+                        "activitySubtitle": "This is a test to verify your notification settings",
+                        "facts": [
+                            { "name": "Sent on", "value": new Date().toLocaleString() }
+                        ],
+                        "markdown": true
+                    }]
+                },
+                content: "<h2>Test Notification</h2><p>This is a test to verify your notification settings are working correctly.</p>"
+            });
+            
+            // Show confirmation
+            alert("Test notification sent! Check your " + 
+                (settings.notificationMethod === "both" ? "email and Microsoft Teams" : 
+                (settings.notificationMethod === "email" ? "email" : "Microsoft Teams")));
+        });
+    });
+}
+
+// Reset all settings to defaults
+function resetSettings() {
+    if (confirm("Are you sure you want to reset all notification settings to defaults?")) {
+        // Default settings
+        const defaultSettings = {
+            notifyOnComment: true,
+            notifyOnLabel: true,
+            notifyOnDueDate: true,
+            notifyOnSprintEnd: true,
+            watchedLabels: ["bug", "critical", "urgent"],
+            dueDateThreshold: 2,
+            sprintEndThreshold: 3,
+            notificationMethod: "teams",
+            userMapping: {}
+        };
+        
+        // Save default settings
+        browser.storage.sync.set({ 'notificationSettings': defaultSettings }, function() {
+            updateNotificationStatus(defaultSettings);
+            alert("Settings have been reset to defaults.");
         });
     }
-
-    // Gestion du bouton de vérification immédiate
-    if (checkNowBtn) {
-        checkNowBtn.addEventListener("click", async () => {
-            try {
-                const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-                if (tabs.length > 0) {
-                    await browser.tabs.sendMessage(tabs[0].id, { action: "checkText" });
-                    updateStatus("🔍 Vérification en cours...", "info");
-                }
-            } catch (error) {
-                updateStatus("❌ Erreur lors de la vérification", "error");
-                console.error("Erreur:", error);
-            }
-        });
-    }
-
-    // Gestion du bouton "Afficher la bulle"
-    if (afficherBulleBtn) {
-        afficherBulleBtn.addEventListener("click", async () => {
-            try {
-                const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-                if (tabs.length > 0) {
-                    await browser.tabs.sendMessage(tabs[0].id, { action: "showBubble" });
-                    updateStatus("✨ Bulle affichée !", "success");
-                }
-            } catch (error) {
-                updateStatus("❌ Erreur lors de l'affichage de la bulle", "error");
-                console.error("Erreur:", error);
-            }
-        });
-    }
-
-    // Fonctions utilitaires
-    function updateStatus(message, className) {
-        if (statusDiv) {
-            statusDiv.textContent = message;
-            statusDiv.className = className;
-        }
-    }
-
-    function updateToggleButton() {
-        if (toggleCorrectionBtn) {
-            toggleCorrectionBtn.textContent = correctionActive ? 
-                "Désactiver la correction" : 
-                "Activer la correction";
-            toggleCorrectionBtn.className = correctionActive ? 
-                "active" : 
-                "inactive";
-        }
-    }
-});
+}

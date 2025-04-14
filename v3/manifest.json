@@ -11,9 +11,11 @@
     ],
     "host_permissions": [
       "*://*.atlassian.net/*",
-      "https://votre-chatbot.streamlit.app/"
+      "https://votre-chatbot.streamlit.app/",
+      "https://your-teams-webhook-url.com/*",
+      "https://your-email-service-api.com/*"
     ],
-  
+   
     "background": {
       "service_worker": "service-worker.js"
     },
@@ -30,6 +32,7 @@
       "48": "icon.png",
       "128": "icon.png"
     },
+  
     "content_scripts": [
       {
         "matches": ["*://*.atlassian.net/*"],
@@ -37,7 +40,7 @@
       }
     ],
     "web_accessible_resources": [{
-        "resources": ["content.js", "icon.png"],
+        "resources": ["content.js", "icon.png" , "chat.png"],
         "matches": ["*://*.atlassian.net/*"]
       }]
   }
