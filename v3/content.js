@@ -152,19 +152,15 @@ function createErrorBubble() {
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         errorBubble.style.visibility = "hidden";
-        // Réinitialiser l'input actif
-        currentActiveInput = null;
     });
     errorBubble.appendChild(closeBtn);
     document.body.appendChild(errorBubble);
 
-    // Variable pour suivre l'input actuellement actif
-    let currentActiveInput = null;
+    // Supprimer le conteneur de chat (comme demandé)
+    // Nous avons supprimé la partie qui créait le chatContainer et l'iframe
 
     // Fonction pour positionner la bulle près d'un élément input
     function positionBubbleNearInput(inputElement) {
-        if (!inputElement) return;
-        
         const rect = inputElement.getBoundingClientRect();
         
         // Calculer la position pour la bulle (à droite du champ)
@@ -173,81 +169,68 @@ function createErrorBubble() {
         errorBubble.style.visibility = "visible";
     }
 
-    // Fonction pour vérifier si un élément a du contenu
-    function hasContent(element) {
-        if (element.isContentEditable) {
-            return element.textContent.trim() !== '';
-        } else {
-            return element.value && element.value.trim() !== '';
-        }
-    }
-
-    // Fonction pour attacher les écouteurs d'événements aux inputs
+    // Attacher des écouteurs d'événements à tous les champs de saisie
     function attachInputListeners() {
         // Pour les champs input, textarea et les éléments contenteditable
         const inputSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], textarea, [contenteditable="true"]';
         const inputs = document.querySelectorAll(inputSelectors);
         
         inputs.forEach(input => {
-            // Événement focus pour définir l'input actif
-            input.addEventListener('focus', () => {
-                currentActiveInput = input;
-                if (hasContent(input)) {
-                    positionBubbleNearInput(input);
-                }
-            });
-            
-            // Événement blur (perte de focus) - ne rien faire pour garder la bulle visible
-            input.addEventListener('blur', (e) => {
-                // Vérifier si le focus passe à un autre input ou à la bulle
-                const newFocusElement = e.relatedTarget;
-                if (newFocusElement && 
-                   (newFocusElement.matches(inputSelectors) || 
-                    errorBubble.contains(newFocusElement))) {
-                    // Si le focus passe à un autre input ou à la bulle, ne rien faire
-                } else {
-                    // Si le focus ne passe pas à un élément pertinent, garder l'input actuel
-                    // pour que la bulle reste positionnée au même endroit
-                }
-            });
-            
-            // Événement input pour repositionner la bulle pendant la frappe
+            // Afficher la bulle uniquement lors de la frappe
             input.addEventListener('input', () => {
-                if (hasContent(input)) {
-                    currentActiveInput = input;
+                if (input.value && input.value.trim() !== '') {
                     positionBubbleNearInput(input);
+                } else if (input.isContentEditable && input.textContent.trim() !== '') {
+                    positionBubbleNearInput(input);
+                } else {
+                    errorBubble.style.visibility = "hidden";
                 }
             });
             
             // Pour les éléments contenteditable
             if (input.isContentEditable) {
                 input.addEventListener('keyup', () => {
-                    if (hasContent(input)) {
-                        currentActiveInput = input;
+                    if (input.textContent.trim() !== '') {
                         positionBubbleNearInput(input);
+                    } else {
+                        errorBubble.style.visibility = "hidden";
                     }
                 });
             }
         });
+        
+        // Cacher la bulle quand on clique ailleurs
+        document.addEventListener('click', (e) => {
+            // Vérifier si le clic n'est pas sur un input ou sur la bulle
+            const isInput = e.target.matches(inputSelectors);
+            const isOnBubble = errorBubble.contains(e.target);
+            
+            if (!isInput && !isOnBubble) {
+                errorBubble.style.visibility = "hidden";
+            }
+        });
     }
 
-    // Repositionner la bulle lors du défilement ou du redimensionnement
-    window.addEventListener('scroll', () => {
-        if (currentActiveInput && errorBubble.style.visibility === "visible") {
-            positionBubbleNearInput(currentActiveInput);
-        }
-    });
-    
-    window.addEventListener('resize', () => {
-        if (currentActiveInput && errorBubble.style.visibility === "visible") {
-            positionBubbleNearInput(currentActiveInput);
-        }
-    });
-    
-    // Modifier le comportement de la bulle au clic
+    // Modifier le comportement de la bulle au clic (puisqu'il n'y a plus de chatbot)
     errorBubble.addEventListener("click", () => {
-        console.log("Bulle cliquée");
         // Vous pouvez ajouter ici une autre action si nécessaire
+        console.log("Bulle cliquée");
+        // Par exemple, notifier l'utilisateur que la fonctionnalité est en cours de développement
+        // ou tout simplement ne rien faire
+    });
+
+    // Détecter également la sélection de texte
+    document.addEventListener('mouseup', () => {
+        const selection = window.getSelection();
+        if (selection.toString().trim().length > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            // Positionner la bulle près de la sélection
+            errorBubble.style.top = (rect.bottom + window.scrollY + 5) + "px";
+            errorBubble.style.left = (rect.right + window.scrollX - errorBubble.offsetWidth/2) + "px";
+            errorBubble.style.visibility = "visible";
+        }
     });
 
     // Surveiller les modifications du DOM pour détecter de nouveaux champs
@@ -265,6 +248,7 @@ function createErrorBubble() {
 
     return errorBubble;
 }
+
 
 // Mise à jour dynamique de la bulle d'erreur
 function updateErrorBubble(errorCount) {
@@ -853,72 +837,42 @@ function createBubbleChat() {
     content.appendChild(chatImage);
     chatBubble.appendChild(content);
 
-// Bouton de fermeture - Version simple
-// Bouton de fermeture
-const closeBtn = document.createElement("button");
-closeBtn.innerHTML = `
-    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="1" y1="1" x2="7" y2="7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="7" y1="1" x2="1" y2="7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-`;
-closeBtn.style.cssText = `
-    position: absolute;
-    top: 0px;
-    right: 0px;
-    width: 18px;
-    height: 18px;
-    background: linear-gradient(45deg, #e53935, #ff5252);
-    color: white;
-    border: 1.5px solid rgba(255,255,255,0.3);
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    transform: translate(50%, -50%);
-    z-index: 10001;
-    padding: 0;
-    transition: all 0.2s ease;
-`;
-
-closeBtn.addEventListener("mouseenter", () => {
-    closeBtn.style.background = "linear-gradient(45deg, #d32f2f, #ff1744)";
-    closeBtn.style.transform = "translate(50%, -50%) scale(1.1)";
-});
-
-closeBtn.addEventListener("mouseleave", () => {
-    closeBtn.style.background = "linear-gradient(45deg, #e53935, #ff5252)";
-    closeBtn.style.transform = "translate(50%, -50%)";
-});
-
-closeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    
-    // Animation de fermeture
-    chatBubble.style.transition = "all 0.2s ease";
-    chatBubble.style.transform = "scale(0.8)";
-    chatBubble.style.opacity = "0";
-    
-    setTimeout(() => {
+    // Bouton de fermeture
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✖";
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        width: 18px;
+        height: 18px;
+        background: #ff4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        transform: translate(50%, -50%);
+        z-index: 10001;
+    `;
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         chatBubble.style.display = "none";
-        // Réinitialiser les propriétés pour la prochaine apparition
-        chatBubble.style.transform = "";
-        chatBubble.style.opacity = "";
-    }, 200);
-    
-    // Stocker l'état dans le localStorage
-    localStorage.setItem("chatBubbleHidden", "true");
-    
-    // Réafficher après 1 heure
-    setTimeout(() => {
-        chatBubble.style.display = "flex";
-        localStorage.removeItem("chatBubbleHidden");
-    }, 3600000);
-});
-
-chatBubble.appendChild(closeBtn);
+        
+        // Stocker l'état dans le localStorage
+        localStorage.setItem("chatBubbleHidden", "true");
+        
+        // Réafficher après 1 heure
+        setTimeout(() => {
+            chatBubble.style.display = "flex";
+            localStorage.removeItem("chatBubbleHidden");
+        }, 3600000);
+    });
+    chatBubble.appendChild(closeBtn);
     
     // Important: Ajouter au document AVANT de créer le conteneur de chat
     document.body.appendChild(chatBubble);

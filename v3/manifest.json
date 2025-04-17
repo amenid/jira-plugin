@@ -7,13 +7,15 @@
     "permissions": [
       "activeTab",
       "storage",
-      "scripting"
+      "scripting",
+      "notifications"
     ],
     "host_permissions": [
-      "*://*.atlassian.net/*",
       "https://votre-chatbot.streamlit.app/",
-      "https://your-teams-webhook-url.com/*",
-      "https://your-email-service-api.com/*"
+      "*://*.atlassian.net/*",
+      "*://*.jira.com/*",
+      "https://outlook.office.com/*",
+      "https://api.emailjs.com/*"
     ],
    
     "background": {
@@ -35,7 +37,7 @@
   
     "content_scripts": [
       {
-        "matches": ["*://*.atlassian.net/*"],
+        "matches": [     "*://*.atlassian.net/*",  "*://*.jira.com/*"],
         "js": ["content.js"]
       }
     ],
