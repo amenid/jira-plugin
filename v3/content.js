@@ -446,23 +446,108 @@ function showUniqueError(input, message) {
     }, 5000);
 }
 
+// Modification de la fonction checkInput pour cibler spécifiquement le champ summary
 function checkInput(input) {
     // Ignorer les champs appartenant à l'extension
     if (isExtensionField(input)) {
         return;
     }
     
-    const text = input.value.trim();
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                     input.name === "summary" || 
+                     input.classList.contains("summary-field");
+    
+    // Ne traiter que le champ summary
+    if (isSummary) {
+        const text = input.value.trim();
 
-    if (text === "") {
-        // Si le champ est vide, revenir à l'état initial (icône par défaut)
-        updateErrorBubble(0);
-    } else {
-        const hasErrors = checkText(input); 
-        // Use the global errorCount instead of the boolean return value
-        updateErrorBubble(errorCount); 
+        if (text === "") {
+            // Si le champ est vide, revenir à l'état initial (icône par défaut)
+            updateErrorBubble(0);
+        } else {
+            const hasErrors = checkText(input);
+            // Use the global errorCount instead of the boolean return value
+            updateErrorBubble(errorCount);
+        }
     }
 }
+
+// Modification de l'écoute des événements pour se concentrer sur le champ summary
+document.addEventListener("input", (e) => {
+    const input = e.target;
+    
+    // Ignorer les champs de l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // Ne traiter que le champ summary
+    if (isSummary) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500);
+    }
+});
+
+// Fonction pour ajouter des contrôles supplémentaires
+function addAdditionalControls() {
+    // Identifier tous les champs à valider
+    const fieldsToValidate = [
+        { id: "component", validator: checkComponent },
+        { id: "version", validator: checkVersion },
+        { id: "priority", validator: checkPriority }
+        // Ajoutez d'autres champs ici selon vos besoins
+    ];
+    
+    // Attacher les validateurs aux champs
+    fieldsToValidate.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            element.addEventListener("change", field.validator);
+            element.addEventListener("input", field.validator);
+            
+            // Vérification initiale
+            field.validator({ target: element });
+        }
+    });
+}
+
+// Exemple de fonction de validation pour un nouveau champ
+function checkComponent(event) {
+    const input = event.target;
+    const value = input.value.trim();
+    
+    // Exemple de validation spécifique
+    if (value === "" || value === "none") {
+        showUniqueError(input, "Le composant ne peut pas être vide ou 'none'");
+        errorCount++;
+    } else {
+        
+    }
+    
+    updateErrorBubble(errorCount);
+    return value === "" || value === "none"; // Retourne true si erreur
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    createErrorBubble();
+    updateErrorBubble(0);
+    
+    addAdditionalControls();
+    
+    const summaryField = document.getElementById('summary') || 
+                         document.querySelector('input[name="summary"]') ||
+                         document.querySelector('.summary-field');
+    
+    if (summaryField) {
+        checkInput(summaryField);
+    }
+});
 
 // Fonction pour déterminer si un champ appartient à l'extension
 function isExtensionField(element) {
