@@ -1,48 +1,43 @@
 {
-    "manifest_version": 3,
-    "name": "BUGS REPORT JIRA",
-    "version": "1.0",
-    "description": "Une extension qui affiche une bulle d'erreur et compte les fautes grammaticales",
-  
-    "permissions": [
-      "activeTab",
-      "storage",
-      "scripting",
-      "notifications"
-    ],
-    "host_permissions": [
-      "https://votre-chatbot.streamlit.app/",
-      "*://*.atlassian.net/*",
-      "*://*.jira.com/*",
-      "https://outlook.office.com/*",
-      "https://api.emailjs.com/*"
-    ],
-   
-    "background": {
-      "service_worker": "service-worker.js"
-    },
-    "action": {
-      "default_popup": "popup.html",
-      "default_icon": {
-        "16": "icon.png",
-        "48": "icon.png",
-        "128": "icon.png"
-      }
-    },
-    "icons": {
+  "manifest_version": 3,
+  "name": "BUGS REPORT JIRA",
+  "version": "1.0",
+  "description": "Extension qui envoie des notifications pour les commentaires Jira",
+  "permissions": [
+    "storage",
+    "notifications",
+    "scripting",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.atlassian.net/*",
+    "https://*.jira.com/*",
+    "https://api.brevo.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
       "16": "icon.png",
       "48": "icon.png",
       "128": "icon.png"
-    },
-  
-    "content_scripts": [
-      {
-        "matches": [     "*://*.atlassian.net/*",  "*://*.jira.com/*"],
-        "js": ["content.js"]
-      }
-    ],
-    "web_accessible_resources": [{
-        "resources": ["content.js", "icon.png" , "chat.png"],
-        "matches": ["*://*.atlassian.net/*"]
-      }]
-  }
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.atlassian.net/*", "https://*.jira.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [{
+    "resources": ["icon.png", "chat.png"],
+    "matches": ["https://*.atlassian.net/*", "https://*.jira.com/*"]
+  }]
+}

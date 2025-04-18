@@ -6,13 +6,13 @@ const CHATBOT_URL = 'https://votre-chatbot.streamlit.app';
 
 // Gestion du badge avec sécurité
 function updateBadge(count) {
-    errorCount = Math.max(0, parseInt(count)) || 0; // Parenthèse fermante ajoutée ici
-    const badgeText = errorCount > 0 ? String(errorCount) : "";
-    const badgeColor = errorCount > 0 ? [255, 0, 0, 255] : [0, 128, 0, 255];
-  
-    chrome.action.setBadgeText({ text: badgeText });
-    chrome.action.setBadgeBackgroundColor({ color: badgeColor });
-  }
+  errorCount = Math.max(0, parseInt(count) || 0); 
+  const badgeText = errorCount > 0 ? String(errorCount) : "";
+  const badgeColor = errorCount > 0 ? [255, 0, 0, 255] : [0, 128, 0, 255];
+
+  chrome.action.setBadgeText({ text: badgeText });
+  chrome.action.setBadgeBackgroundColor({ color: badgeColor });
+}
 // Vérification des URLs autorisées
 function isAllowedUrl(url) {
   try {
@@ -23,6 +23,7 @@ function isAllowedUrl(url) {
     return false;
   }
 }
+
 
 // Injection sécurisée du chatbot
 async function injectChatbot(tabId) {
@@ -112,4 +113,36 @@ chrome.runtime.onInstalled.addListener(() => {
 // Gestion des erreurs globales
 self.addEventListener('error', (event) => {
   console.error('Erreur SW:', event.error);
+});
+chrome.runtime.onInstalled.addListener(() => {
+  // Stockage initial des identifiants (à faire une seule fois)
+  chrome.storage.local.set({
+    brevoUser: '8a993d002@smtp-brevo.com',
+    brevoApiKey: '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'
+  }, () => {
+    console.log('Identifiants Brevo initialisés en stockage sécurisé');
+  });
+  
+  chrome.action.setBadgeText({ text: '' });
+  chrome.action.setTitle({ title: 'BUGS REPORT JIRA' });
+  console.log('Extension initialisée');
+});
+
+
+
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "updateErrors") {
+    // Mettre à jour le badge avec le nombre d'erreurs
+    if (message.count > 0) {
+      // Afficher le nombre d'erreurs sur l'icône
+      chrome.action.setBadgeText({ text: message.count.toString() });
+      chrome.action.setBadgeBackgroundColor({ color: "#FF0000" }); // Rouge
+    } else {
+      // Effacer le badge si pas d'erreurs
+      chrome.action.setBadgeText({ text: "" });
+    }
+    sendResponse({ success: true });
+    return true;
+  }
 });

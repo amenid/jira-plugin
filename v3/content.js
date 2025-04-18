@@ -6,42 +6,8 @@ let errorBubble;
 let chatBubble;
 let errorCount = 0;
 let timeoutId;
-let notificationSettings = {
-    notifyOnComment: true,
-    notifyOnLabel: true,
-    notifyOnDueDate: true,
-    notifyOnSprintEnd: true,
-    watchedLabels: ["bug", "critical", "urgent"],
-    dueDateThreshold: 2, // days before due date
-    sprintEndThreshold: 3, // days before sprint end
-    notificationMethod: "teams", // "teams" or "email" or "both"
-    userMapping: {} // Will be populated from settings
-};
 
-// Détection du navigateur pour utiliser la bonne API
-const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// Load notification settings from storage
-function loadNotificationSettings() {
-    try {
-      browserAPI.storage.sync.get('notificationSettings', (result) => {
-        if (result.notificationSettings) {
-          notificationSettings = { ...notificationSettings, ...result.notificationSettings };
-          console.log("Notification settings loaded:", notificationSettings);
-        }
-      });
-    } catch (error) {
-      console.error("Failed to load notification settings:", error);
-        }
-    }
-
-// Save notification settings to storage
-function saveNotificationSettings() {
-    browserAPI.storage.sync.set({ 'notificationSettings': notificationSettings });
-}
-
-// Initialize settings on load
-loadNotificationSettings();
 
 function createErrorBubble() {
     if (document.getElementById("errorBubble")) {
@@ -83,7 +49,7 @@ function createErrorBubble() {
     // Icône normale
     const icon = document.createElement("img");
     icon.id = "bubbleIcon";
-    icon.src = browserAPI.runtime.getURL("icon.png");
+    icon.src = chrome.runtime.getURL("icon.png");
     Object.assign(icon.style, {
         width: "100%",
         height: "100%",
@@ -97,21 +63,23 @@ function createErrorBubble() {
         left: "0",
         transition: "opacity 0.3s ease"
     });
-
     const text = document.createElement("span");
     text.id = "errorCount";
     text.textContent = "0"; // Start with 0
     Object.assign(text.style, {
         display: "none",
-        fontSize: "18px",
+        fontSize: "16px",
         fontWeight: "bold",
         color: "white",
-        position: "relative",
+        position: "absolute",
+        top: "0",
+        left: "0",
         zIndex: "20",
-        textAlign: "center",
         width: "100%",
         height: "100%",
-        lineHeight: "40px"
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center"
     });
 
     content.appendChild(icon);
@@ -156,57 +124,84 @@ function createErrorBubble() {
     errorBubble.appendChild(closeBtn);
     document.body.appendChild(errorBubble);
 
-    // Supprimer le conteneur de chat (comme demandé)
-    // Nous avons supprimé la partie qui créait le chatContainer et l'iframe
-
-    // Fonction pour positionner la bulle près d'un élément input
     function positionBubbleNearInput(inputElement) {
         const rect = inputElement.getBoundingClientRect();
+        const errorBubble = document.getElementById("errorBubble");
         
-        // Calculer la position pour la bulle (à droite du champ)
+        // Positionner la bulle à l'intérieur du champ, près du bord droit
+        errorBubble.style.position = "absolute";
         errorBubble.style.top = (rect.top + window.scrollY + (rect.height - errorBubble.offsetHeight) / 2) + "px";
-        errorBubble.style.left = (rect.right + window.scrollX + 5) + "px"; // 5px d'écart
+        
+        // Positionnement à droite avec un petit décalage par rapport au bord
+        const padding = 5; // 5px de décalage par rapport au bord droit
+        errorBubble.style.left = (rect.right + window.scrollX - errorBubble.offsetWidth - padding) + "px";
+        
+        // Adapter la taille en fonction de la hauteur du champ
+        const bubbleSize = Math.min(rect.height * 0.8, 28); // 80% de la hauteur du champ, max 28px
+        errorBubble.style.width = bubbleSize + "px";
+        errorBubble.style.height = bubbleSize + "px";
+        
+        // S'assurer que la bulle est devant le contenu du champ
+        errorBubble.style.zIndex = "1001";
+        
+        // Rendre visible
         errorBubble.style.visibility = "visible";
+        
+        // Mise à jour de la position lors du défilement
+        const updatePosition = () => {
+            const updatedRect = inputElement.getBoundingClientRect();
+            errorBubble.style.top = (updatedRect.top + window.scrollY + (updatedRect.height - errorBubble.offsetHeight) / 2) + "px";
+            errorBubble.style.left = (updatedRect.right + window.scrollX - errorBubble.offsetWidth - padding) + "px";
+        };
+        
+        // Supprimer les écouteurs existants avant d'en ajouter de nouveaux
+        window.removeEventListener('scroll', window._currentScrollHandler);
+        window._currentScrollHandler = updatePosition;
+        window.addEventListener('scroll', window._currentScrollHandler);
+        
+        // Mise à jour lors du redimensionnement de la fenêtre
+        window.removeEventListener('resize', window._currentResizeHandler);
+        window._currentResizeHandler = updatePosition;
+        window.addEventListener('resize', window._currentResizeHandler);
     }
-
-    // Attacher des écouteurs d'événements à tous les champs de saisie
     function attachInputListeners() {
-        // Pour les champs input, textarea et les éléments contenteditable
+        // For input fields, textareas, and contenteditable elements
         const inputSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], textarea, [contenteditable="true"]';
         const inputs = document.querySelectorAll(inputSelectors);
         
         inputs.forEach(input => {
-            // Afficher la bulle uniquement lors de la frappe
+            // Show bubble on focus
+            input.addEventListener('focus', () => {
+                positionBubbleNearInput(input);
+            });
+            
+            // Update position during typing
             input.addEventListener('input', () => {
-                if (input.value && input.value.trim() !== '') {
+                if ((input.value && input.value.trim() !== '') || 
+                    (input.isContentEditable && input.textContent.trim() !== '')) {
                     positionBubbleNearInput(input);
-                } else if (input.isContentEditable && input.textContent.trim() !== '') {
-                    positionBubbleNearInput(input);
-                } else {
-                    errorBubble.style.visibility = "hidden";
                 }
             });
             
-            // Pour les éléments contenteditable
+            // For contenteditable elements
             if (input.isContentEditable) {
                 input.addEventListener('keyup', () => {
-                    if (input.textContent.trim() !== '') {
-                        positionBubbleNearInput(input);
-                    } else {
-                        errorBubble.style.visibility = "hidden";
-                    }
+                    positionBubbleNearInput(input);
                 });
             }
         });
         
-        // Cacher la bulle quand on clique ailleurs
+        // Hide bubble when clicking elsewhere
         document.addEventListener('click', (e) => {
-            // Vérifier si le clic n'est pas sur un input ou sur la bulle
             const isInput = e.target.matches(inputSelectors);
             const isOnBubble = errorBubble.contains(e.target);
             
             if (!isInput && !isOnBubble) {
                 errorBubble.style.visibility = "hidden";
+                
+                // Remove scroll and resize event listeners when hiding the bubble
+                window.removeEventListener('scroll', window._currentScrollHandler);
+                window.removeEventListener('resize', window._currentResizeHandler);
             }
         });
     }
@@ -215,8 +210,7 @@ function createErrorBubble() {
     errorBubble.addEventListener("click", () => {
         // Vous pouvez ajouter ici une autre action si nécessaire
         console.log("Bulle cliquée");
-        // Par exemple, notifier l'utilisateur que la fonctionnalité est en cours de développement
-        // ou tout simplement ne rien faire
+    
     });
 
     // Détecter également la sélection de texte
@@ -250,7 +244,6 @@ function createErrorBubble() {
 }
 
 
-// Mise à jour dynamique de la bulle d'erreur
 function updateErrorBubble(errorCount) {
     const bubble = document.getElementById("errorBubble") || createErrorBubble();
     const icon = document.getElementById("bubbleIcon");
@@ -261,7 +254,7 @@ function updateErrorBubble(errorCount) {
         Object.assign(bubble.style, {
             backgroundColor: "#ff4444",
             borderColor: "#ff0000",
-            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
+            boxShadow: "0 2px 10px rgba(255,0,0,0.3)",
             background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
         });
         
@@ -272,12 +265,12 @@ function updateErrorBubble(errorCount) {
         
         // Afficher le texte avec le nombre d'erreurs
         if (text) {
-            text.style.display = "block";
+            text.style.display = "flex";
             text.textContent = errorCount.toString();
         }
         
-        // Ajouter une animation pulsante
-        bubble.style.animation = "pulse 2s infinite";
+        // Animation pulsante subtile
+        bubble.style.animation = "pulse 1.5s infinite";
         if (!document.getElementById("bubbleAnimation")) {
             const style = document.createElement("style");
             style.id = "bubbleAnimation";
@@ -295,7 +288,7 @@ function updateErrorBubble(errorCount) {
         Object.assign(bubble.style, {
             backgroundColor: "rgba(255, 255, 255, 0.9)",
             borderColor: "transparent",
-            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
+            boxShadow: "0 2px 15px rgba(0,0,0,0.2)",
             background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
             animation: "none"
         });
@@ -310,6 +303,7 @@ function updateErrorBubble(errorCount) {
             text.style.display = "none";
         }
     }
+    chrome.runtime.sendMessage({ type: "updateErrors", count: errorCount });
 }
 
 function createErrorContainer() {
@@ -453,6 +447,11 @@ function showUniqueError(input, message) {
 }
 
 function checkInput(input) {
+    // Ignorer les champs appartenant à l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+    
     const text = input.value.trim();
 
     if (text === "") {
@@ -465,6 +464,44 @@ function checkInput(input) {
     }
 }
 
+// Fonction pour déterminer si un champ appartient à l'extension
+function isExtensionField(element) {
+    // Vérifier si le champ se trouve dans un conteneur de l'extension
+    const isInExtension = element.closest("#errorBubble") || 
+                         element.closest("#chatBubble") || 
+                         element.closest("#chatBotContainer") ||
+                         element.closest("#errorAlertsContainer");
+    
+    // Vérifier les identifiants ou classes qui pourraient indiquer un champ de l'extension
+    const hasExtensionClass = element.classList && (
+        element.classList.contains("ext-field") || 
+        element.id?.startsWith("ext-") ||
+        element.id?.includes("bubble") ||
+        element.id?.includes("chat")
+    );
+    
+    return isInExtension || hasExtensionClass;
+}
+// Écouter les changements dans les champs de texte avec une attention particulière pour le champ summary
+document.addEventListener("input", (e) => {
+    const input = e.target;
+    
+    // Ignorer les champs de l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // Pour les champs de saisie standard et le champ summary
+    if (input.matches("textarea, input[type='text']") || isSummary) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500); 
+    }
+});
 function validateSegment(segment) {
     const errors = [];
 
@@ -515,7 +552,7 @@ function checkText(input) {
     if (newErrorCount !== errorCount) {
         errorCount = newErrorCount;
         updateErrorBubble(errorCount);
-        browserAPI.runtime.sendMessage({ type: "updateErrors", count: errorCount });
+        chrome.runtime.sendMessage({ type: "updateErrors", count: errorCount });
         console.log("Current error count:", errorCount);
     }
 
@@ -533,16 +570,6 @@ document.addEventListener("input", (e) => {
     }
 });
 
-// Message handling from background script
-browserAPI.runtime.onMessage.addListener((message) => {
-    if (message.action === "showBubble") {
-        const bubble = document.getElementById("errorBubble") || createErrorBubble();
-        bubble.style.display = "flex";
-    } else if (message.action === "notificationSettingsUpdated") {
-        // Reload settings when updated from options page
-        loadNotificationSettings();
-    }
-});
 
 // Contrôle de la priorité et autres validators
 const errorFlags = {
@@ -732,52 +759,6 @@ function initializeEventListeners() {
     }
 }
 
-// Initialize notification background services
-function initializeNotificationServices() {
-    // Setup observers
-    observeForNewComments();
-    observeForLabelChanges();
-    
-    // Setup interval checks
-    checkDueDates();
-    checkSprintEndingWithOpenTickets();
-    
-    console.log("🔔 Notification services initialized");
-}
-function saveSettings(settings) {
-    try {
-      browserAPI.storage.sync.set({ 'notificationSettings': settings });
-    } catch (e) {
-      // Fallback to localStorage
-      localStorage.setItem('notificationSettings', JSON.stringify(settings));
-    }
-  }
-  
-  function loadSettings() {
-    try {
-      browserAPI.storage.sync.get('notificationSettings', (result) => {
-        if (result.notificationSettings) {
-          return result.notificationSettings;
-        } else {
-          // Try localStorage
-          const stored = localStorage.getItem('notificationSettings');
-          return stored ? JSON.parse(stored) : null;
-        }
-      });
-    } catch (e) {
-      // Fallback to localStorage
-      const stored = localStorage.getItem('notificationSettings');
-      return stored ? JSON.parse(stored) : null;
-    }
-  }
-// For Jira's dynamic content loading
-const waitForJira = setInterval(() => {
-    if (document.querySelector('.jira-content')) {
-      clearInterval(waitForJira);
-      createBubbleChat();
-    }
-  }, 500);
-// Fonction corrigée pour créer et afficher le chat bubble
 function createBubbleChat() {
     // Vérifie si la bulle existe déjà
     if (document.getElementById("chatBubble")) {
@@ -998,39 +979,7 @@ function initializeChatFeatures() {
     }
 }
 
-// Écouter les messages de l'extension
-function setupExtensionListener() {
-    // S'assurer que chrome.runtime est disponible
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-        chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-            if (message.action === "toggleChatBubble") {
-                const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
-                const chatContainer = document.getElementById("chatBotContainer");
-                
-                // Afficher la bulle si elle était cachée
-                if (chatBubble.style.display === "none") {
-                    chatBubble.style.display = "flex";
-                    localStorage.removeItem("chatBubbleHidden");
-                    
-                    // Effet d'apparition
-                    chatBubble.style.transform = "scale(0)";
-                    setTimeout(() => {
-                        chatBubble.style.transform = "scale(1)";
-                    }, 100);
-                }
-                
-                // Ouvrir automatiquement la fenêtre de chat
-                chatContainer.style.display = "block";
-                chatBubble.style.transform = "scale(1.05)";
-                
-                sendResponse({success: true});
-                return true; // Important pour les réponses asynchrones
-            }
-        });
-    } else {
-        console.warn("Chrome runtime not available for extension messaging");
-    }
-}
+
 
 // Fonction pour afficher la bulle de chat (à appeler depuis popup.js)
 function afficherBulle() {
@@ -1054,44 +1003,34 @@ function afficherBulle() {
     
     return true;
 }
-
-// Exposer la fonction afficherBulle pour l'appel depuis popup.js
+ 
 window.afficherBulle = afficherBulle;
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
-// Exposer la fonction afficherBulle pour l'appel depuis popup.js
 window.afficherBulle = afficherBulle;
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
-// Initialiser à la fois la bulle de chat et l'écouteur d'extension
 document.addEventListener("DOMContentLoaded", function() {
     createBubbleChat();
     setupExtensionListener();
 });
-// Initialisation au chargement de la page
 document.addEventListener("DOMContentLoaded", () => {
    try { 
 
@@ -1138,8 +1077,7 @@ document.addEventListener("DOMContentLoaded", () => {
     errorOccurrence();
     otherText(document.getElementById("exampleText"), "[TestSuitaName]:");
     
-    // Initialize notification services after a delay to ensure the page is fully loaded
-    setTimeout(initializeNotificationServices, 2000);
+
 } catch (error) {
     console.error("Error during initialization:", error);
   }
@@ -1156,5 +1094,5 @@ console.log("Chat bubble z-index:", chatBubble.style.zIndex);
       console.error("Failed to create chat bubble:", error);
     }
   });
-console.log("✅ content.js chargé et injecté avec notification services !");
+console.log("✅ content.js chargé!");
 console.log("Script execution completed, bubble should be visible");
