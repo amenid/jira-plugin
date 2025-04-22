@@ -6,42 +6,8 @@ let errorBubble;
 let chatBubble;
 let errorCount = 0;
 let timeoutId;
-let notificationSettings = {
-    notifyOnComment: true,
-    notifyOnLabel: true,
-    notifyOnDueDate: true,
-    notifyOnSprintEnd: true,
-    watchedLabels: ["bug", "critical", "urgent"],
-    dueDateThreshold: 2, // days before due date
-    sprintEndThreshold: 3, // days before sprint end
-    notificationMethod: "teams", // "teams" or "email" or "both"
-    userMapping: {} // Will be populated from settings
-};
 
-// Détection du navigateur pour utiliser la bonne API
-const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// Load notification settings from storage
-function loadNotificationSettings() {
-    try {
-      browserAPI.storage.sync.get('notificationSettings', (result) => {
-        if (result.notificationSettings) {
-          notificationSettings = { ...notificationSettings, ...result.notificationSettings };
-          console.log("Notification settings loaded:", notificationSettings);
-        }
-      });
-    } catch (error) {
-      console.error("Failed to load notification settings:", error);
-        }
-    }
-
-// Save notification settings to storage
-function saveNotificationSettings() {
-    browserAPI.storage.sync.set({ 'notificationSettings': notificationSettings });
-}
-
-// Initialize settings on load
-loadNotificationSettings();
 
 function createErrorBubble() {
     if (document.getElementById("errorBubble")) {
@@ -83,7 +49,7 @@ function createErrorBubble() {
     // Icône normale
     const icon = document.createElement("img");
     icon.id = "bubbleIcon";
-    icon.src = browserAPI.runtime.getURL("icon.png");
+    icon.src = chrome.runtime.getURL("icon.png");
     Object.assign(icon.style, {
         width: "100%",
         height: "100%",
@@ -97,21 +63,23 @@ function createErrorBubble() {
         left: "0",
         transition: "opacity 0.3s ease"
     });
-
     const text = document.createElement("span");
     text.id = "errorCount";
     text.textContent = "0"; // Start with 0
     Object.assign(text.style, {
         display: "none",
-        fontSize: "18px",
+        fontSize: "16px",
         fontWeight: "bold",
         color: "white",
-        position: "relative",
+        position: "absolute",
+        top: "0",
+        left: "0",
         zIndex: "20",
-        textAlign: "center",
         width: "100%",
         height: "100%",
-        lineHeight: "40px"
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center"
     });
 
     content.appendChild(icon);
@@ -155,58 +123,86 @@ function createErrorBubble() {
     });
     errorBubble.appendChild(closeBtn);
     document.body.appendChild(errorBubble);
+    
 
-    // Supprimer le conteneur de chat (comme demandé)
-    // Nous avons supprimé la partie qui créait le chatContainer et l'iframe
-
-    // Fonction pour positionner la bulle près d'un élément input
     function positionBubbleNearInput(inputElement) {
         const rect = inputElement.getBoundingClientRect();
+        const errorBubble = document.getElementById("errorBubble");
         
-        // Calculer la position pour la bulle (à droite du champ)
+        // Positionner la bulle à l'intérieur du champ, près du bord droit
+        errorBubble.style.position = "absolute";
         errorBubble.style.top = (rect.top + window.scrollY + (rect.height - errorBubble.offsetHeight) / 2) + "px";
-        errorBubble.style.left = (rect.right + window.scrollX + 5) + "px"; // 5px d'écart
+        
+        // Positionnement à droite avec un petit décalage par rapport au bord
+        const padding = 5; // 5px de décalage par rapport au bord droit
+        errorBubble.style.left = (rect.right + window.scrollX - errorBubble.offsetWidth - padding) + "px";
+        
+        // Adapter la taille en fonction de la hauteur du champ
+        const bubbleSize = Math.min(rect.height * 0.8, 28); // 80% de la hauteur du champ, max 28px
+        errorBubble.style.width = bubbleSize + "px";
+        errorBubble.style.height = bubbleSize + "px";
+        
+        // S'assurer que la bulle est devant le contenu du champ
+        errorBubble.style.zIndex = "1001";
+        
+        // Rendre visible
         errorBubble.style.visibility = "visible";
+        
+        // Mise à jour de la position lors du défilement
+        const updatePosition = () => {
+            const updatedRect = inputElement.getBoundingClientRect();
+            errorBubble.style.top = (updatedRect.top + window.scrollY + (updatedRect.height - errorBubble.offsetHeight) / 2) + "px";
+            errorBubble.style.left = (updatedRect.right + window.scrollX - errorBubble.offsetWidth - padding) + "px";
+        };
+        
+        // Supprimer les écouteurs existants avant d'en ajouter de nouveaux
+        window.removeEventListener('scroll', window._currentScrollHandler);
+        window._currentScrollHandler = updatePosition;
+        window.addEventListener('scroll', window._currentScrollHandler);
+        
+        // Mise à jour lors du redimensionnement de la fenêtre
+        window.removeEventListener('resize', window._currentResizeHandler);
+        window._currentResizeHandler = updatePosition;
+        window.addEventListener('resize', window._currentResizeHandler);
     }
-
-    // Attacher des écouteurs d'événements à tous les champs de saisie
     function attachInputListeners() {
-        // Pour les champs input, textarea et les éléments contenteditable
+        // For input fields, textareas, and contenteditable elements
         const inputSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], textarea, [contenteditable="true"]';
         const inputs = document.querySelectorAll(inputSelectors);
         
         inputs.forEach(input => {
-            // Afficher la bulle uniquement lors de la frappe
+            // Show bubble on focus
+            input.addEventListener('focus', () => {
+                positionBubbleNearInput(input);
+            });
+            
+            // Update position during typing
             input.addEventListener('input', () => {
-                if (input.value && input.value.trim() !== '') {
+                if ((input.value && input.value.trim() !== '') || 
+                    (input.isContentEditable && input.textContent.trim() !== '')) {
                     positionBubbleNearInput(input);
-                } else if (input.isContentEditable && input.textContent.trim() !== '') {
-                    positionBubbleNearInput(input);
-                } else {
-                    errorBubble.style.visibility = "hidden";
                 }
             });
             
-            // Pour les éléments contenteditable
+            // For contenteditable elements
             if (input.isContentEditable) {
                 input.addEventListener('keyup', () => {
-                    if (input.textContent.trim() !== '') {
-                        positionBubbleNearInput(input);
-                    } else {
-                        errorBubble.style.visibility = "hidden";
-                    }
+                    positionBubbleNearInput(input);
                 });
             }
         });
         
-        // Cacher la bulle quand on clique ailleurs
+        // Hide bubble when clicking elsewhere
         document.addEventListener('click', (e) => {
-            // Vérifier si le clic n'est pas sur un input ou sur la bulle
             const isInput = e.target.matches(inputSelectors);
             const isOnBubble = errorBubble.contains(e.target);
             
             if (!isInput && !isOnBubble) {
                 errorBubble.style.visibility = "hidden";
+                
+                // Remove scroll and resize event listeners when hiding the bubble
+                window.removeEventListener('scroll', window._currentScrollHandler);
+                window.removeEventListener('resize', window._currentResizeHandler);
             }
         });
     }
@@ -215,8 +211,7 @@ function createErrorBubble() {
     errorBubble.addEventListener("click", () => {
         // Vous pouvez ajouter ici une autre action si nécessaire
         console.log("Bulle cliquée");
-        // Par exemple, notifier l'utilisateur que la fonctionnalité est en cours de développement
-        // ou tout simplement ne rien faire
+    
     });
 
     // Détecter également la sélection de texte
@@ -250,67 +245,6 @@ function createErrorBubble() {
 }
 
 
-// Mise à jour dynamique de la bulle d'erreur
-function updateErrorBubble(errorCount) {
-    const bubble = document.getElementById("errorBubble") || createErrorBubble();
-    const icon = document.getElementById("bubbleIcon");
-    const text = document.getElementById("errorCount");
-
-    if (errorCount > 0) {
-        // Si des erreurs sont détectées
-        Object.assign(bubble.style, {
-            backgroundColor: "#ff4444",
-            borderColor: "#ff0000",
-            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
-        });
-        
-        // Cacher l'icône
-        if (icon) {
-            icon.style.display = "none";
-        }
-        
-        // Afficher le texte avec le nombre d'erreurs
-        if (text) {
-            text.style.display = "block";
-            text.textContent = errorCount.toString();
-        }
-        
-        // Ajouter une animation pulsante
-        bubble.style.animation = "pulse 2s infinite";
-        if (!document.getElementById("bubbleAnimation")) {
-            const style = document.createElement("style");
-            style.id = "bubbleAnimation";
-            style.textContent = `
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                    100% { transform: scale(1); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    } else {
-        // Si aucune erreur n'est détectée
-        Object.assign(bubble.style, {
-            backgroundColor: "rgba(255, 255, 255, 0.9)",
-            borderColor: "transparent",
-            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
-            animation: "none"
-        });
-        
-        // Afficher l'icône
-        if (icon) {
-            icon.style.display = "block";
-        }
-        
-        // Cacher le texte du nombre d'erreurs
-        if (text) {
-            text.style.display = "none";
-        }
-    }
-}
 
 function createErrorContainer() {
     // Vérifier si le conteneur existe déjà
@@ -437,34 +371,148 @@ function showError(input, message) {
 let activeAlerts = new Set();
 
 // Fonction qui vérifie les doublons avant d'afficher l'erreur
-function showUniqueError(input, message) {
-    // Si ce message est déjà affiché, ne pas le dupliquer
-    if (activeAlerts.has(message)) {
+
+// Modification de la fonction checkInput pour cibler spécifiquement le champ summary
+function checkInput(input) {
+    // Ignorer les champs appartenant à l'extension
+    if (isExtensionField(input)) {
         return;
     }
     
-    activeAlerts.add(message);
-    showError(input, message);
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                     input.name === "summary" || 
+                     input.classList.contains("summary-field");
     
-    // Supprimer du tracker après le délai d'affichage
-    setTimeout(() => {
-        activeAlerts.delete(message);
-    }, 5000);
-}
+    // Ne traiter que le champ summary
+    if (isSummary) {
+        const text = input.value.trim();
 
-function checkInput(input) {
-    const text = input.value.trim();
-
-    if (text === "") {
-        // Si le champ est vide, revenir à l'état initial (icône par défaut)
-        updateErrorBubble(0);
-    } else {
-        const hasErrors = checkText(input); 
-        // Use the global errorCount instead of the boolean return value
-        updateErrorBubble(errorCount); 
+        if (text === "") {
+            // Si le champ est vide, revenir à l'état initial (icône par défaut)
+            updateErrorBubble(0);
+        } else {
+            const hasErrors = checkText(input);
+            // Use the global errorCount instead of the boolean return value
+            updateErrorBubble(errorCount);
+        }
     }
 }
 
+// Modification de l'écoute des événements pour se concentrer sur le champ summary
+document.addEventListener("input", (e) => {
+    const input = e.target;
+    
+    // Ignorer les champs de l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // Ne traiter que le champ summary
+    if (isSummary) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500);
+    }
+});
+
+// Fonction pour ajouter des contrôles supplémentaires
+function addAdditionalControls() {
+    // Identifier tous les champs à valider
+    const fieldsToValidate = [
+        { id: "component", validator: checkComponent },
+        { id: "version", validator: checkVersion },
+        { id: "priority", validator: checkPriority }
+        // Ajoutez d'autres champs ici selon vos besoins
+    ];
+    
+    // Attacher les validateurs aux champs
+    fieldsToValidate.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            element.addEventListener("change", field.validator);
+            element.addEventListener("input", field.validator);
+            
+            // Vérification initiale
+            field.validator({ target: element });
+        }
+    });
+}
+
+// Exemple de fonction de validation pour un nouveau champ
+function checkComponent(event) {
+    const input = event.target;
+    const value = input.value.trim();
+    
+    // Exemple de validation spécifique
+    if (value === "" || value === "none") {
+        showUniqueError(input, "Le composant ne peut pas être vide ou 'none'");
+        errorCount++;
+    } else {
+        
+    }
+    
+    updateErrorBubble(errorCount);
+    return value === "" || value === "none"; // Retourne true si erreur
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    createErrorBubble();
+    updateErrorBubble(0);
+    
+    addAdditionalControls();
+    
+    const summaryField = document.getElementById('summary') || 
+                         document.querySelector('input[name="summary"]') ||
+                         document.querySelector('.summary-field');
+    
+    if (summaryField) {
+        checkInput(summaryField);
+    }
+});
+
+// Fonction pour déterminer si un champ appartient à l'extension
+function isExtensionField(element) {
+    // Vérifier si le champ se trouve dans un conteneur de l'extension
+    const isInExtension = element.closest("#errorBubble") || 
+                         element.closest("#chatBubble") || 
+                         element.closest("#chatBotContainer") ||
+                         element.closest("#errorAlertsContainer");
+    
+    // Vérifier les identifiants ou classes qui pourraient indiquer un champ de l'extension
+    const hasExtensionClass = element.classList && (
+        element.classList.contains("ext-field") || 
+        element.id?.startsWith("ext-") ||
+        element.id?.includes("bubble") ||
+        element.id?.includes("chat")
+    );
+    
+    return isInExtension || hasExtensionClass;
+}
+// Écouter les changements dans les champs de texte avec une attention particulière pour le champ summary
+document.addEventListener("input", (e) => {
+    const input = e.target;
+    
+    // Ignorer les champs de l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // Pour les champs de saisie standard et le champ summary
+    if (input.matches("textarea, input[type='text']") || isSummary) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500); 
+    }
+});
 function validateSegment(segment) {
     const errors = [];
 
@@ -493,34 +541,9 @@ function validateSegment(segment) {
     return errors;
 }
 
-function checkText(input) {
-    const text = input.value.trim();
-    const lines = text.split('\n'); 
-    let newErrorCount = 0;
 
-    lines.forEach((line, lineIndex) => {
-        if (line.trim() === '') return; // Skip empty lines
-        
-        const errors = validateSegment(line);
 
-        if (errors.length > 0) {
-            newErrorCount += errors.length;
-            errors.forEach((error, errorIndex) => {
-                showUniqueError(input, ` ${error}`);
-            });
-        }
-    });
 
-    // Update the global error count and bubble
-    if (newErrorCount !== errorCount) {
-        errorCount = newErrorCount;
-        updateErrorBubble(errorCount);
-        browserAPI.runtime.sendMessage({ type: "updateErrors", count: errorCount });
-        console.log("Current error count:", errorCount);
-    }
-
-    return errorCount > 0; // Return boolean indicating if there are errors
-}
 
 // Écouter les changements dans les champs de texte
 document.addEventListener("input", (e) => {
@@ -533,17 +556,441 @@ document.addEventListener("input", (e) => {
     }
 });
 
-// Message handling from background script
-browserAPI.runtime.onMessage.addListener((message) => {
-    if (message.action === "showBubble") {
-        const bubble = document.getElementById("errorBubble") || createErrorBubble();
-        bubble.style.display = "flex";
-    } else if (message.action === "notificationSettingsUpdated") {
-        // Reload settings when updated from options page
-        loadNotificationSettings();
+// Fonction d'autocomplétion pour le champ summary
+function initSummaryAutocomplete() {
+    // Identifie le champ summary
+    const summaryField = document.getElementById('summary') || 
+                         document.querySelector('input[name="summary"]') ||
+                         document.querySelector('.summary-field');
+    
+    if (!summaryField) {
+        console.error("Champ summary non trouvé");
+        return;
+    }
+    
+    // Ajouter un placeholder pour guider l'utilisateur
+    summaryField.placeholder = "[SWP-123] [IPNext] [Activity] : Description";
+    
+    // Ajouter une info-bulle explicative
+    summaryField.title = "Format requis: [SWP-123] [IPNext] [Activity] : Description - Utilisez ESPACE pour naviguer entre les sections";
+    
+    // Liste des activités valides (déjà définie dans le code existant)
+    const validActivities = ["Nightly", "Coverage", "Periodic_2h", "Weekly", "FV", "PreInt", "PreGate"];
+    
+    // Variables pour suivre l'état de l'autocomplétion
+    let currentSegment = 0; // 0 = id, 1 = IPNext, 2 = activity, 3 = text
+    let activityMenu = null;
+    
+    // Ajout d'un écouteur d'événements pour gérer l'autocomplétion
+    summaryField.addEventListener('input', function(e) {
+        const cursorPosition = this.selectionStart;
+        const text = this.value;
+        
+        // Détection de la position actuelle dans la chaîne de format
+        detectCurrentSegment(text);
+        
+        // Gestion de l'autocomplétion en fonction du segment actuel
+        handleAutocomplete(this, text, cursorPosition);
+    });
+    
+    // Ajout d'un écouteur pour les touches spéciales (Espace, Tab, etc.)
+    summaryField.addEventListener('keydown', function(e) {
+        // Si l'utilisateur appuie sur Espace
+        if (e.key === ' ') {
+            const text = this.value;
+            const cursorPosition = this.selectionStart;
+            
+            // Vérifier si nous sommes à la fin d'un segment
+            if (isSegmentComplete(text, currentSegment, cursorPosition)) {
+                e.preventDefault(); // Empêcher l'espace d'être ajouté
+                moveToNextSegment(this, text, cursorPosition);
+            }
+        }
+        
+        // Si l'utilisateur appuie sur Tab
+        if (e.key === 'Tab') {
+            const text = this.value;
+            const cursorPosition = this.selectionStart;
+            
+            // Vérifier si nous sommes dans un segment incomplet
+            if (!isSegmentComplete(text, currentSegment, cursorPosition)) {
+                e.preventDefault(); // Empêcher le comportement par défaut du Tab
+                completeCurrentSegment(this, text, cursorPosition);
+            }
+        }
+    });
+    
+    // Fonction pour détecter le segment actuel en fonction du texte
+    function detectCurrentSegment(text) {
+        // Regex pour identifier les segments
+        const idRegex = /^\[SWP-\d+\]/;
+        const ipNextRegex = /^\[SWP-\d+\]\s+\[IPNext\]/;
+        const activityRegex = /^\[SWP-\d+\]\s+\[IPNext\]\s+\[(Nightly|Coverage|Periodic_2h|Weekly|FV|PreInt|PreGate)\]/;
+        const colonRegex = /^\[SWP-\d+\]\s+\[IPNext\]\s+\[(Nightly|Coverage|Periodic_2h|Weekly|FV|PreInt|PreGate)\]\s*:/;
+        
+        if (!idRegex.test(text)) {
+            currentSegment = 0; // ID manquant
+        } else if (!ipNextRegex.test(text)) {
+            currentSegment = 1; // IPNext manquant
+        } else if (!activityRegex.test(text)) {
+            currentSegment = 2; // Activity manquant
+        } else if (!colonRegex.test(text)) {
+            currentSegment = 3; // Deux-points manquants
+        } else {
+            currentSegment = 4; // Texte de description
+        }
+    }
+    
+    // Fonction pour vérifier si un segment est complet
+    function isSegmentComplete(text, segment, position) {
+        const segments = parseSegments(text);
+        
+        switch (segment) {
+            case 0: // ID
+                return segments.id && text.indexOf(']', 0) === position - 1;
+            case 1: // IPNext
+                return segments.ipNext && text.indexOf(']', segments.id.length) === position - 1;
+            case 2: // Activity
+                return segments.activity && text.indexOf(']', segments.id.length + segments.ipNext.length) === position - 1;
+            case 3: // Colon
+                return text.indexOf(':', 0) === position - 1;
+            default:
+                return false;
+        }
+    }
+    
+    // Fonction pour passer au segment suivant
+    function moveToNextSegment(inputField, text, position) {
+        let newText = text;
+        
+        switch (currentSegment) {
+            case 0: // Après ID, ajouter espace + [IPNext]
+                newText = text + ' [IPNext]';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                currentSegment = 1;
+                
+                // Ajouter automatiquement le segment suivant avec le crochet ouvrant après [IPNext]
+                setTimeout(() => {
+                    newText += ' [';
+                    inputField.value = newText;
+                    inputField.setSelectionRange(newText.length, newText.length);
+                    currentSegment = 2;
+                    showActivityMenu(inputField, newText.length);
+                }, 100);
+                break;
+                
+            case 1: // Après IPNext, ajouter espace + [
+                newText = text + ' [';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                currentSegment = 2;
+                showActivityMenu(inputField, newText.length);
+                break;
+                
+            case 2: // Après Activity, ajouter espace + :
+                newText = text + ' :';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                currentSegment = 3;
+                break;
+                
+            case 3: // Après les deux-points, ajouter espace
+                newText = text + ' ';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                currentSegment = 4;
+                break;
+        }
+        
+        // Déclencher un événement input pour vérifier la validité
+        inputField.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    
+    // Fonction pour compléter le segment actuel
+    function completeCurrentSegment(inputField, text, position) {
+        let newText = text;
+        
+        switch (currentSegment) {
+            case 0: // ID
+                if (!text.startsWith('[')) {
+                    newText = '[' + text;
+                }
+                if (!text.includes(']')) {
+                    if (text.includes('SWP-')) {
+                        // Compléter avec le crochet fermant
+                        newText = newText + ']';
+                    } else {
+                        // Ajouter le préfixe SWP- si manquant
+                        newText = newText.replace('[', '[SWP-');
+                    }
+                }
+                break;
+                
+            case 1: // IPNext
+                if (!text.includes('[IPNext]', text.indexOf(']') + 1)) {
+                    const idEnd = text.indexOf(']') + 1;
+                    newText = text.substring(0, idEnd) + ' [IPNext]';
+                }
+                break;
+                
+            case 2: // Activity
+                // Géré par la liste déroulante d'activités
+                break;
+                
+            case 3: // Colon
+                if (!text.includes(':')) {
+                    newText = text + ' :';
+                }
+                break;
+        }
+        
+        inputField.value = newText;
+        inputField.setSelectionRange(newText.length, newText.length);
+        
+        // Déclencher un événement input pour vérifier la validité
+        inputField.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    
+    // Fonction pour gérer l'autocomplétion en temps réel
+    function handleAutocomplete(inputField, text, position) {
+        // Autocomplétion pour le segment ID
+        if (currentSegment === 0) {
+            // Si l'utilisateur commence à taper, ajouter les crochets si nécessaire
+            if (text.length > 0 && !text.startsWith('[')) {
+                inputField.value = '[' + text;
+                inputField.setSelectionRange(position + 1, position + 1);
+            }
+            // Si l'utilisateur tape "SWP" sans le tiret, ajouter le tiret
+            if (text.includes('SWP') && !text.includes('SWP-')) {
+                const newText = text.replace('SWP', 'SWP-');
+                inputField.value = newText;
+                inputField.setSelectionRange(position + 1, position + 1);
+            }
+            
+            // Si l'utilisateur tape juste un nombre sans SWP, ajouter le préfixe SWP-
+            const idContent = text.match(/\[(\d+)/);
+            if (idContent) {
+                const newText = text.replace('[' + idContent[1], '[SWP-' + idContent[1]);
+                inputField.value = newText;
+                inputField.setSelectionRange(position + 4, position + 4); // +4 pour "SWP-"
+            }
+        }
+        
+        // Autocomplétion pour IPNext
+        if (currentSegment === 1) {
+            // Si l'utilisateur tape "ip", autocompléter en "IPNext"
+            const lastSegment = text.substring(text.indexOf(']') + 1).trim();
+            if (lastSegment.startsWith('[i') || lastSegment.startsWith('[I')) {
+                const newText = text.substring(0, text.indexOf(']') + 1) + ' [IPNext]';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                
+                // Ajouter automatiquement le segment suivant avec le crochet ouvrant
+                setTimeout(() => {
+                    inputField.value = newText + ' [';
+                    inputField.setSelectionRange(newText.length + 2, newText.length + 2);
+                    showActivityMenu(inputField, newText.length + 2);
+                    currentSegment = 2;
+                }, 100);
+            }
+        }
+        
+        // Autocomplétion pour Activity
+        if (currentSegment === 2) {
+            const segments = parseSegments(text);
+            if (segments.partial && !segments.activity) {
+                // Si l'utilisateur a commencé à taper une activité
+                showActivityMenu(inputField, position);
+            }
+        }
+    }
+    
+    // Fonction pour afficher le menu d'activités
+    function showActivityMenu(inputField, position) {
+        // Supprimer le menu existant s'il y en a un
+        if (activityMenu) {
+            activityMenu.remove();
+        }
+        
+        // Créer un nouveau menu
+        activityMenu = document.createElement('div');
+        activityMenu.className = 'activity-menu';
+        Object.assign(activityMenu.style, {
+            position: 'absolute',
+            background: 'white',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            zIndex: '9999',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            width: '150px'
+        });
+        
+        // Positionner le menu sous le champ de saisie
+        const rect = inputField.getBoundingClientRect();
+        activityMenu.style.top = (rect.bottom + 5) + 'px';
+        activityMenu.style.left = (rect.left + position * 8) + 'px'; // Estimation de la position du curseur
+        
+        // Ajouter les options d'activité
+        validActivities.forEach(activity => {
+            const option = document.createElement('div');
+            option.textContent = activity;
+            Object.assign(option.style, {
+                padding: '8px 12px',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+            });
+            
+            // Effet de survol
+            option.addEventListener('mouseenter', () => {
+                option.style.background = '#f0f0f0';
+            });
+            option.addEventListener('mouseleave', () => {
+                option.style.background = 'transparent';
+            });
+            
+            // Sélection d'une activité
+            option.addEventListener('click', () => {
+                const text = inputField.value;
+                const segments = parseSegments(text);
+                
+                // Construire le nouveau texte avec l'activité sélectionnée
+                let newText;
+                if (segments.partial) {
+                    // Remplacer l'activité partielle
+                    const activityStart = text.lastIndexOf('[', position);
+                    newText = text.substring(0, activityStart) + '[' + activity + ']';
+                } else {
+                    // Ajouter la nouvelle activité
+                    newText = text + activity + ']';
+                }
+                
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                activityMenu.remove();
+                activityMenu = null;
+                
+                // Déclencher un événement input pour vérifier la validité
+                inputField.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+            
+            activityMenu.appendChild(option);
+        });
+        
+        // Ajouter le menu au document
+        document.body.appendChild(activityMenu);
+        
+        // Fermer le menu si on clique ailleurs
+        document.addEventListener('click', function closeMenu(e) {
+            if (!activityMenu.contains(e.target) && e.target !== inputField) {
+                activityMenu.remove();
+                activityMenu = null;
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }
+    
+    // Fonction pour analyser les segments du texte
+    function parseSegments(text) {
+        const result = {
+            id: null,
+            ipNext: null,
+            activity: null,
+            partial: null,
+            text: null
+        };
+        
+        // Regex pour les différents segments
+        const idRegex = /^\[([^\]]+)\]/;
+        const ipNextRegex = /\[IPNext\]/;
+        const activityRegex = /\[(Nightly|Coverage|Periodic_2h|Weekly|FV|PreInt|PreGate)\]/;
+        const partialRegex = /\[([^\]]*)/g;
+        
+        // Extraire l'ID
+        const idMatch = text.match(idRegex);
+        if (idMatch) {
+            result.id = idMatch[0];
+        }
+        
+        // Extraire IPNext
+        const ipNextMatch = text.match(ipNextRegex);
+        if (ipNextMatch) {
+            result.ipNext = ipNextMatch[0];
+        }
+        
+        // Extraire l'activité
+        const activityMatch = text.match(activityRegex);
+        if (activityMatch) {
+            result.activity = activityMatch[0];
+        }
+        
+        // Extraire une activité partielle (crochets ouverts sans fermeture)
+        const allPartials = [...text.matchAll(partialRegex)];
+        if (allPartials.length > 0) {
+            const lastPartial = allPartials[allPartials.length - 1];
+            if (!text.includes(']', lastPartial.index)) {
+                result.partial = lastPartial[0];
+            }
+        }
+        
+        // Extraire le texte après les deux-points
+        const colonIndex = text.indexOf(':');
+        if (colonIndex !== -1) {
+            result.text = text.substring(colonIndex + 1).trim();
+        }
+        
+        return result;
+    }
+    
+    // Initialisation - vérifier l'état actuel du champ
+    if (summaryField.value) {
+        detectCurrentSegment(summaryField.value);
+    }
+    
+    console.log("📝 Autocomplétion pour le champ summary initialisée");
+}
+
+// Exécuter l'initialisation quand le DOM est chargé
+document.addEventListener("DOMContentLoaded", function() {
+    try {
+        initSummaryAutocomplete();
+    } catch (error) {
+        console.error("Erreur lors de l'initialisation de l'autocomplétion:", error);
     }
 });
 
+// Si le document est déjà chargé
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    try {
+        initSummaryAutocomplete();
+    } catch (error) {
+        console.error("Erreur lors de l'initialisation de l'autocomplétion:", error);
+    }
+}
+
+// Pour s'assurer que le script fonctionne même avec les chargements dynamiques
+const observer = new MutationObserver(function(mutations) {
+    for (const mutation of mutations) {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // Vérifier si un champ summary a été ajouté
+                    const summaryField = node.querySelector('#summary') || 
+                                         node.querySelector('input[name="summary"]') ||
+                                         node.querySelector('.summary-field');
+                    if (summaryField) {
+                        initSummaryAutocomplete();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
 // Contrôle de la priorité et autres validators
 const errorFlags = {
     priority: false,
@@ -732,52 +1179,6 @@ function initializeEventListeners() {
     }
 }
 
-// Initialize notification background services
-function initializeNotificationServices() {
-    // Setup observers
-    observeForNewComments();
-    observeForLabelChanges();
-    
-    // Setup interval checks
-    checkDueDates();
-    checkSprintEndingWithOpenTickets();
-    
-    console.log("🔔 Notification services initialized");
-}
-function saveSettings(settings) {
-    try {
-      browserAPI.storage.sync.set({ 'notificationSettings': settings });
-    } catch (e) {
-      // Fallback to localStorage
-      localStorage.setItem('notificationSettings', JSON.stringify(settings));
-    }
-  }
-  
-  function loadSettings() {
-    try {
-      browserAPI.storage.sync.get('notificationSettings', (result) => {
-        if (result.notificationSettings) {
-          return result.notificationSettings;
-        } else {
-          // Try localStorage
-          const stored = localStorage.getItem('notificationSettings');
-          return stored ? JSON.parse(stored) : null;
-        }
-      });
-    } catch (e) {
-      // Fallback to localStorage
-      const stored = localStorage.getItem('notificationSettings');
-      return stored ? JSON.parse(stored) : null;
-    }
-  }
-// For Jira's dynamic content loading
-const waitForJira = setInterval(() => {
-    if (document.querySelector('.jira-content')) {
-      clearInterval(waitForJira);
-      createBubbleChat();
-    }
-  }, 500);
-// Fonction corrigée pour créer et afficher le chat bubble
 function createBubbleChat() {
     // Vérifie si la bulle existe déjà
     if (document.getElementById("chatBubble")) {
@@ -998,39 +1399,7 @@ function initializeChatFeatures() {
     }
 }
 
-// Écouter les messages de l'extension
-function setupExtensionListener() {
-    // S'assurer que chrome.runtime est disponible
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-        chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-            if (message.action === "toggleChatBubble") {
-                const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
-                const chatContainer = document.getElementById("chatBotContainer");
-                
-                // Afficher la bulle si elle était cachée
-                if (chatBubble.style.display === "none") {
-                    chatBubble.style.display = "flex";
-                    localStorage.removeItem("chatBubbleHidden");
-                    
-                    // Effet d'apparition
-                    chatBubble.style.transform = "scale(0)";
-                    setTimeout(() => {
-                        chatBubble.style.transform = "scale(1)";
-                    }, 100);
-                }
-                
-                // Ouvrir automatiquement la fenêtre de chat
-                chatContainer.style.display = "block";
-                chatBubble.style.transform = "scale(1.05)";
-                
-                sendResponse({success: true});
-                return true; // Important pour les réponses asynchrones
-            }
-        });
-    } else {
-        console.warn("Chrome runtime not available for extension messaging");
-    }
-}
+
 
 // Fonction pour afficher la bulle de chat (à appeler depuis popup.js)
 function afficherBulle() {
@@ -1054,44 +1423,34 @@ function afficherBulle() {
     
     return true;
 }
-
-// Exposer la fonction afficherBulle pour l'appel depuis popup.js
+ 
 window.afficherBulle = afficherBulle;
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
-// Exposer la fonction afficherBulle pour l'appel depuis popup.js
 window.afficherBulle = afficherBulle;
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
 
-// Initialiser les fonctionnalités de chat à différentes étapes pour maximiser les chances de succès
 document.addEventListener("DOMContentLoaded", initializeChatFeatures);
 window.addEventListener("load", initializeChatFeatures);
 
-// Initialisation immédiate si le document est déjà chargé
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initializeChatFeatures, 100);
 }
-// Initialiser à la fois la bulle de chat et l'écouteur d'extension
 document.addEventListener("DOMContentLoaded", function() {
     createBubbleChat();
     setupExtensionListener();
 });
-// Initialisation au chargement de la page
 document.addEventListener("DOMContentLoaded", () => {
    try { 
 
@@ -1128,7 +1487,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     updateErrorBubble(errorCount);
-    preventTicketSubmission();
     
     // Initialize additional validators
     variant();
@@ -1138,8 +1496,7 @@ document.addEventListener("DOMContentLoaded", () => {
     errorOccurrence();
     otherText(document.getElementById("exampleText"), "[TestSuitaName]:");
     
-    // Initialize notification services after a delay to ensure the page is fully loaded
-    setTimeout(initializeNotificationServices, 2000);
+
 } catch (error) {
     console.error("Error during initialization:", error);
   }
@@ -1156,5 +1513,183 @@ console.log("Chat bubble z-index:", chatBubble.style.zIndex);
       console.error("Failed to create chat bubble:", error);
     }
   });
-console.log("✅ content.js chargé et injecté avec notification services !");
+console.log("✅ content.js chargé!");
 console.log("Script execution completed, bubble should be visible");
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "toggleChatBubble") {
+      const bubble = createBubbleChat();
+      sendResponse({ success: true, bubbleId: bubble.id });
+      return true; // Indicates you wish to send a response asynchronously
+    }
+  });
+// Function to disable/enable the create button based on error count
+function updateCreateButton() {
+    const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
+    
+    if (createButton) {
+        if (errorCount > 0) {
+            createButton.disabled = true;
+            createButton.style.opacity = "0.5";
+            createButton.style.cursor = "not-allowed";
+            
+            // Add a title attribute to explain why it's disabled
+            createButton.setAttribute("title", "Please fix all errors before submitting");
+        } else {
+            createButton.disabled = false;
+            createButton.style.opacity = "1";
+            createButton.style.cursor = "pointer";
+            createButton.removeAttribute("title");
+        }
+    }
+}
+
+// Update the error bubble function to also update the button state
+function updateErrorBubble(errorCount) {
+    const bubble = document.getElementById("errorBubble") || createErrorBubble();
+    const icon = document.getElementById("bubbleIcon");
+    const text = document.getElementById("errorCount");
+
+    if (errorCount > 0) {
+        // If errors are detected
+        Object.assign(bubble.style, {
+            backgroundColor: "#ff4444",
+            borderColor: "#ff0000",
+            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
+        });
+        
+        // Hide the icon
+        if (icon) {
+            icon.style.display = "none";
+        }
+        
+        // Show the text with the error count and ensure it's centered
+        if (text) {
+            text.style.display = "flex";
+            text.textContent = errorCount.toString();
+            
+            // Ajustement supplémentaire pour les grands nombres
+            if (errorCount > 9) {
+                text.style.fontSize = "14px";
+            } else {
+                text.style.fontSize = "16px";
+            }
+        }
+        
+        // Add a pulsing animation
+        bubble.style.animation = "pulse 2s infinite";
+        if (!document.getElementById("bubbleAnimation")) {
+            const style = document.createElement("style");
+            style.id = "bubbleAnimation";
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    } else {
+        // If no errors are detected
+        Object.assign(bubble.style, {
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderColor: "transparent",
+            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
+            animation: "none"
+        });
+        
+        // Show the icon
+        if (icon) {
+            icon.style.display = "block";
+        }
+        
+        // Hide the error count text
+        if (text) {
+            text.style.display = "none";
+        }
+    }
+    
+    // Update the submit button state
+    updateCreateButton();
+}
+
+// Function to set up a MutationObserver to watch for the button
+function preventTicketSubmission() {
+    // First check if the button already exists
+    updateCreateButton();
+    
+    // Then set up an observer to watch for the button if it doesn't exist yet
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.addedNodes.length) {
+                // Check if our button has been added
+                const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
+                if (createButton) {
+                    updateCreateButton();
+                }
+            }
+        });
+    });
+    
+    // Watch for changes in the DOM where the button might be added
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+// Call this function during initialization
+document.addEventListener("DOMContentLoaded", () => {
+    preventTicketSubmission();
+});
+
+// Update all places where errorCount changes
+function showUniqueError(input, message) {
+    // If this message is already displayed, don't duplicate it
+    if (activeAlerts.has(message)) {
+        return;
+    }
+    
+    activeAlerts.add(message);
+    showError(input, message);
+    
+    // Remove from tracker after display delay
+    setTimeout(() => {
+        activeAlerts.delete(message);
+    }, 5000);
+    
+    // Update the button state whenever errors are shown
+    updateCreateButton();
+}
+
+// Update in the checkText function as well
+function checkText(input) {
+    const text = input.value.trim();
+    const lines = text.split('\n'); 
+    let newErrorCount = 0;
+
+    lines.forEach((line, lineIndex) => {
+        if (line.trim() === '') return; // Skip empty lines
+        
+        const errors = validateSegment(line);
+
+        if (errors.length > 0) {
+            newErrorCount += errors.length;
+            errors.forEach((error, errorIndex) => {
+                showUniqueError(input, ` ${error}`);
+            });
+        }
+    });
+
+    // Update the global error count and bubble
+    if (newErrorCount !== errorCount) {
+        errorCount = newErrorCount;
+        updateErrorBubble(errorCount);
+        browserAPI.runtime.sendMessage({ type: "updateErrors", count: errorCount });
+        console.log("Current error count:", errorCount);
+    }
+
+    return errorCount > 0; // Return boolean indicating if there are errors
+}

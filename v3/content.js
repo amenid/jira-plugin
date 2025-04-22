@@ -1642,9 +1642,7 @@ function preventTicketSubmission() {
 
 // Call this function during initialization
 document.addEventListener("DOMContentLoaded", () => {
-    // ... (existing code)
     preventTicketSubmission();
-    // ... (existing code)
 });
 
 // Update all places where errorCount changes
