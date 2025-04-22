@@ -245,6 +245,67 @@ function createErrorBubble() {
 }
 
 
+function updateErrorBubble(errorCount) {
+    const bubble = document.getElementById("errorBubble") || createErrorBubble();
+    const icon = document.getElementById("bubbleIcon");
+    const text = document.getElementById("errorCount");
+
+    if (errorCount > 0) {
+        // Si des erreurs sont détectées
+        Object.assign(bubble.style, {
+            backgroundColor: "#ff4444",
+            borderColor: "#ff0000",
+            boxShadow: "0 2px 10px rgba(255,0,0,0.3)",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
+        });
+        
+        // Cacher l'icône
+        if (icon) {
+            icon.style.display = "none";
+        }
+        
+        // Afficher le texte avec le nombre d'erreurs
+        if (text) {
+            text.style.display = "flex";
+            text.textContent = errorCount.toString();
+        }
+        
+        // Animation pulsante subtile
+        bubble.style.animation = "pulse 1.5s infinite";
+        if (!document.getElementById("bubbleAnimation")) {
+            const style = document.createElement("style");
+            style.id = "bubbleAnimation";
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    } else {
+        // Si aucune erreur n'est détectée
+        Object.assign(bubble.style, {
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderColor: "transparent",
+            boxShadow: "0 2px 15px rgba(0,0,0,0.2)",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
+            animation: "none"
+        });
+        
+        // Afficher l'icône
+        if (icon) {
+            icon.style.display = "block";
+        }
+        
+        // Cacher le texte du nombre d'erreurs
+        if (text) {
+            text.style.display = "none";
+        }
+    }
+    chrome.runtime.sendMessage({ type: "updateErrors", count: errorCount });
+}
 
 function createErrorContainer() {
     // Vérifier si le conteneur existe déjà
@@ -371,6 +432,20 @@ function showError(input, message) {
 let activeAlerts = new Set();
 
 // Fonction qui vérifie les doublons avant d'afficher l'erreur
+function showUniqueError(input, message) {
+    // Si ce message est déjà affiché, ne pas le dupliquer
+    if (activeAlerts.has(message)) {
+        return;
+    }
+    
+    activeAlerts.add(message);
+    showError(input, message);
+    
+    // Supprimer du tracker après le délai d'affichage
+    setTimeout(() => {
+        activeAlerts.delete(message);
+    }, 5000);
+}
 
 // Modification de la fonction checkInput pour cibler spécifiquement le champ summary
 function checkInput(input) {
@@ -541,9 +616,34 @@ function validateSegment(segment) {
     return errors;
 }
 
+function checkText(input) {
+    const text = input.value.trim();
+    const lines = text.split('\n'); 
+    let newErrorCount = 0;
 
+    lines.forEach((line, lineIndex) => {
+        if (line.trim() === '') return; // Skip empty lines
+        
+        const errors = validateSegment(line);
 
+        if (errors.length > 0) {
+            newErrorCount += errors.length;
+            errors.forEach((error, errorIndex) => {
+                showUniqueError(input, ` ${error}`);
+            });
+        }
+    });
 
+    // Update the global error count and bubble
+    if (newErrorCount !== errorCount) {
+        errorCount = newErrorCount;
+        updateErrorBubble(errorCount);
+        chrome.runtime.sendMessage({ type: "updateErrors", count: errorCount });
+        console.log("Current error count:", errorCount);
+    }
+
+    return errorCount > 0; // Return boolean indicating if there are errors
+}
 
 // Écouter les changements dans les champs de texte
 document.addEventListener("input", (e) => {
@@ -1487,6 +1587,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     updateErrorBubble(errorCount);
+    preventTicketSubmission();
     
     // Initialize additional validators
     variant();
@@ -1522,176 +1623,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true; // Indicates you wish to send a response asynchronously
     }
   });
-// Function to disable/enable the create button based on error count
-function updateCreateButton() {
-    const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
-    
-    if (createButton) {
-        if (errorCount > 0) {
-            createButton.disabled = true;
-            createButton.style.opacity = "0.5";
-            createButton.style.cursor = "not-allowed";
-            
-            // Add a title attribute to explain why it's disabled
-            createButton.setAttribute("title", "Please fix all errors before submitting");
-        } else {
-            createButton.disabled = false;
-            createButton.style.opacity = "1";
-            createButton.style.cursor = "pointer";
-            createButton.removeAttribute("title");
-        }
-    }
-}
-
-// Update the error bubble function to also update the button state
-function updateErrorBubble(errorCount) {
-    const bubble = document.getElementById("errorBubble") || createErrorBubble();
-    const icon = document.getElementById("bubbleIcon");
-    const text = document.getElementById("errorCount");
-
-    if (errorCount > 0) {
-        // If errors are detected
-        Object.assign(bubble.style, {
-            backgroundColor: "#ff4444",
-            borderColor: "#ff0000",
-            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
-        });
-        
-        // Hide the icon
-        if (icon) {
-            icon.style.display = "none";
-        }
-        
-        // Show the text with the error count and ensure it's centered
-        if (text) {
-            text.style.display = "flex";
-            text.textContent = errorCount.toString();
-            
-            // Ajustement supplémentaire pour les grands nombres
-            if (errorCount > 9) {
-                text.style.fontSize = "14px";
-            } else {
-                text.style.fontSize = "16px";
-            }
-        }
-        
-        // Add a pulsing animation
-        bubble.style.animation = "pulse 2s infinite";
-        if (!document.getElementById("bubbleAnimation")) {
-            const style = document.createElement("style");
-            style.id = "bubbleAnimation";
-            style.textContent = `
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                    100% { transform: scale(1); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    } else {
-        // If no errors are detected
-        Object.assign(bubble.style, {
-            backgroundColor: "rgba(255, 255, 255, 0.9)",
-            borderColor: "transparent",
-            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
-            animation: "none"
-        });
-        
-        // Show the icon
-        if (icon) {
-            icon.style.display = "block";
-        }
-        
-        // Hide the error count text
-        if (text) {
-            text.style.display = "none";
-        }
-    }
-    
-    // Update the submit button state
-    updateCreateButton();
-}
-
-// Function to set up a MutationObserver to watch for the button
-function preventTicketSubmission() {
-    // First check if the button already exists
-    updateCreateButton();
-    
-    // Then set up an observer to watch for the button if it doesn't exist yet
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length) {
-                // Check if our button has been added
-                const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
-                if (createButton) {
-                    updateCreateButton();
-                }
-            }
-        });
-    });
-    
-    // Watch for changes in the DOM where the button might be added
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-}
-
-// Call this function during initialization
-document.addEventListener("DOMContentLoaded", () => {
-    // ... (existing code)
-    preventTicketSubmission();
-    // ... (existing code)
-});
-
-// Update all places where errorCount changes
-function showUniqueError(input, message) {
-    // If this message is already displayed, don't duplicate it
-    if (activeAlerts.has(message)) {
-        return;
-    }
-    
-    activeAlerts.add(message);
-    showError(input, message);
-    
-    // Remove from tracker after display delay
-    setTimeout(() => {
-        activeAlerts.delete(message);
-    }, 5000);
-    
-    // Update the button state whenever errors are shown
-    updateCreateButton();
-}
-
-// Update in the checkText function as well
-function checkText(input) {
-    const text = input.value.trim();
-    const lines = text.split('\n'); 
-    let newErrorCount = 0;
-
-    lines.forEach((line, lineIndex) => {
-        if (line.trim() === '') return; // Skip empty lines
-        
-        const errors = validateSegment(line);
-
-        if (errors.length > 0) {
-            newErrorCount += errors.length;
-            errors.forEach((error, errorIndex) => {
-                showUniqueError(input, ` ${error}`);
-            });
-        }
-    });
-
-    // Update the global error count and bubble
-    if (newErrorCount !== errorCount) {
-        errorCount = newErrorCount;
-        updateErrorBubble(errorCount);
-        browserAPI.runtime.sendMessage({ type: "updateErrors", count: errorCount });
-        console.log("Current error count:", errorCount);
-    }
-
-    return errorCount > 0; // Return boolean indicating if there are errors
-}

@@ -1,208 +1,98 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // Éviter la duplication de l'événement DOMContentLoaded
-    // Au chargement du popup, envoyer automatiquement le message pour afficher la bulle
-    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        if (tabs && tabs[0]) {
-            // Envoyer le message pour afficher la bulle automatiquement
-            browser.tabs.sendMessage(tabs[0].id, { action: "toggleChatBubble" }, function(response) {
-                if (browser.runtime.lastError) {
-                    console.error("Erreur lors de l'envoi du message:", browser.runtime.lastError);
+    console.log("Popup chargé, tentative d'afficher la bulle de chat...");
+    
+    // Utiliser une fonction asynchrone pour mieux gérer les erreurs
+    const showChatBubble = async () => {
+        try {
+            // Obtenir l'onglet actif
+            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+            if (!tabs || !tabs[0]) {
+                throw new Error("Aucun onglet actif trouvé");
+            }
+            
+            const activeTab = tabs[0];
+            console.log("Onglet actif trouvé, ID:", activeTab.id);
+            
+            // D'abord essayer d'envoyer un message à l'onglet
+            try {
+                console.log("Tentative d'envoi de message à l'onglet...");
+                const response = await chrome.tabs.sendMessage(activeTab.id, { 
+                    action: "toggleChatBubble",
+                    from: "popup" 
+                });
+                
+                if (response && response.success) {
+                    console.log("Bulle de chat affichée via sendMessage");
+                    return;
+                } else {
+                    console.warn("Réponse reçue mais pas de succès confirmé:", response);
+                }
+            } catch (msgError) {
+                console.warn("Échec de l'envoi du message:", msgError);
+            }
+            
+            // Si le message a échoué, injecter du script directement
+            console.log("Tentative d'injection de script...");
+            const results = await chrome.scripting.executeScript({
+                target: { tabId: activeTab.id },
+                func: function() {
+                    console.log("Script injecté dans la page");
                     
-                    // Tentative d'injecter et d'exécuter la fonction directement si le message échoue
-                    browser.scripting.executeScript({
-                        target: { tabId: tabs[0].id },
-                        function: function() {
-                            // Vérifier si la bulle existe déjà
-                            if (document.getElementById("chatBubble")) {
-                                document.getElementById("chatBubble").style.display = "flex";
-                                document.getElementById("chatBubble").style.visibility = "visible";
-                            } else if (window.createBubbleChat) {
-                                // Si la fonction existe, l'appeler
-                                window.createBubbleChat();
-                            } else {
-                                console.error("Impossible d'afficher la bulle de chat");
-                            }
-                        }
-                    });
-                } else if (response && response.success) {
-                    console.log("Bulle de chat affichée avec succès");
+                    // Vérifier si la bulle existe déjà
+                    const existingBubble = document.getElementById("chatBubble");
+                    if (existingBubble) {
+                        console.log("Bulle existante trouvée, affichage...");
+                        existingBubble.style.display = "flex";
+                        existingBubble.style.visibility = "visible";
+                        return { method: "existing", success: true };
+                    } 
+                    
+                    // Essayer d'utiliser la fonction createBubbleChat si elle existe
+                    if (typeof window.createBubbleChat === 'function') {
+                        console.log("Fonction createBubbleChat trouvée, exécution...");
+                        const bubble = window.createBubbleChat();
+                        return { method: "function", success: !!bubble };
+                    }
+                    
+                    // Si nous arrivons ici, c'est que nous n'avons pas pu afficher la bulle
+                    console.error("Impossible d'afficher la bulle de chat");
+                    return { method: "none", success: false };
                 }
             });
+            
+            if (results && results[0]) {
+                const result = results[0].result;
+                console.log("Résultat de l'injection:", result);
+                
+                if (result && result.success) {
+                    console.log(`Bulle de chat affichée avec succès via ${result.method}`);
+                } else {
+                    throw new Error("L'injection a échoué à afficher la bulle");
+                }
+            } else {
+                throw new Error("Aucun résultat d'injection reçu");
+            }
+            
+        } catch (error) {
+            console.error("Erreur critique:", error);
+            
+            // Afficher un message à l'utilisateur dans le popup
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = 'red';
+            errorDiv.style.padding = '10px';
+            errorDiv.textContent = `Erreur: Impossible d'afficher la bulle de chat. (${error.message})`;
+            document.body.appendChild(errorDiv);
         }
-    });
+    };
     
-    // Fermer le popup après une courte période
-    setTimeout(() => {
-        window.close();
-    }, 300);
-
-    // S'assurer que les éléments existent avant d'y accéder
-    browser.storage.sync.get('notificationSettings', function(result) {
-        const settings = result.notificationSettings || {};
-        updateNotificationStatus(settings);
-    });
-
-    // Vérifier si les éléments existent avant d'ajouter les écouteurs d'événements
-    if (document.getElementById('configureNotifications')) {
-        document.getElementById('configureNotifications').addEventListener('click', openConfigPage);
-    }
-    if (document.getElementById('testNotification')) {
-        document.getElementById('testNotification').addEventListener('click', sendTestNotification);
-    }
-    if (document.getElementById('resetSettings')) {
-        document.getElementById('resetSettings').addEventListener('click', resetSettings);
-    }
+    // Exécuter la fonction
+    showChatBubble();
+    
+    // Ajouter un bouton de secours au popup pour réessayer
+    const retryButton = document.createElement('button');
+    retryButton.textContent = "Réessayer d'afficher la bulle";
+    retryButton.style.marginTop = '10px';
+    retryButton.style.padding = '5px 10px';
+    retryButton.addEventListener('click', showChatBubble);
+    document.body.appendChild(retryButton);
 });
-
-// Update notification status display
-function updateNotificationStatus(settings) {
-    const statusDiv = document.getElementById('notificationStatus');
-    // Vérifier si l'élément existe
-    if (!statusDiv) {
-        console.error("L'élément avec l'ID 'notificationStatus' n'existe pas");
-        return;
-    }
-    
-    let statusHtml = '';
-
-    // Check which notifications are enabled
-    const enabledCount = [
-        settings.notifyOnComment, 
-        settings.notifyOnLabel,
-        settings.notifyOnDueDate,
-        settings.notifyOnSprintEnd
-    ].filter(Boolean).length;
-    
-    const totalCount = 4;
-    
-    if (enabledCount === totalCount) {
-        statusHtml = '<p>✅ All notifications are active</p>';
-    } else if (enabledCount === 0) {
-        statusHtml = '<p>❌ All notifications are disabled</p>';
-    } else {
-        statusHtml = `<p>⚠️ ${enabledCount}/${totalCount} notifications active</p>`;
-    }
-    
-    // Add notification method info
-    if (settings.notificationMethod) {
-        let methodIcon = '';
-        switch(settings.notificationMethod) {
-            case 'teams':
-                methodIcon = '👥 Microsoft Teams';
-                break;
-            case 'email':
-                methodIcon = '📧 Email';
-                break;
-            case 'both':
-                methodIcon = '📧👥 Email & Teams';
-                break;
-            default:
-                methodIcon = settings.notificationMethod;
-        }
-        statusHtml += `<p>Notification method: ${methodIcon}</p>`;
-    }
-    
-    statusDiv.innerHTML = statusHtml + '<button id="configureNotifications">Configure Notifications</button>';
-    
-    // Ajouter l'écouteur d'événement après avoir mis à jour le HTML
-    const configButton = document.getElementById('configureNotifications');
-    if (configButton) {
-        configButton.addEventListener('click', openConfigPage);
-    }
-}
-
-// Open configuration page
-function openConfigPage() {
-    // Find the current active tab
-    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        const activeTab = tabs[0];
-        
-        // Send message to content script to show settings
-        browser.tabs.sendMessage(activeTab.id, {
-            action: "showBubble",
-            showSettings: true
-        });
-        
-        // Close the popup
-        window.close();
-    });
-}
-
-// Send a test notification
-function sendTestNotification() {
-    // Find the current active tab
-    browser.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        const activeTab = tabs[0];
-        
-        // Get current user info
-        browser.storage.sync.get('notificationSettings', function(result) {
-            const settings = result.notificationSettings || {};
-            
-            // Prepare test notification
-            const testTicketInfo = {
-                key: "TEST-123",
-                summary: "Test Notification Ticket",
-                assignee: "You",
-                reporter: "Extension",
-                status: "Testing",
-                project: "TEST",
-                url: activeTab.url,
-                dueDate: new Date().toLocaleDateString(),
-                sprint: "Test Sprint (ends in 5 days)",
-                labels: ["test", "notification"]
-            };
-            
-            // Send test message to background script
-            browser.runtime.sendMessage({
-                action: settings.notificationMethod === "email" ? "sendEmailNotification" : "sendTeamsNotification",
-                recipient: "you",
-                subject: "Test Notification from Jira Extension",
-                message: "This is a test notification to verify that your notification settings are working correctly.",
-                payload: {
-                    "@type": "MessageCard",
-                    "@context": "http://schema.org/extensions",
-                    "themeColor": "0076D7",
-                    "summary": "Test notification",
-                    "sections": [{
-                        "activityTitle": "**Test Notification**",
-                        "activitySubtitle": "This is a test to verify your notification settings",
-                        "facts": [
-                            { "name": "Sent on", "value": new Date().toLocaleString() }
-                        ],
-                        "markdown": true
-                    }]
-                },
-                content: "<h2>Test Notification</h2><p>This is a test to verify your notification settings are working correctly.</p>"
-            });
-            
-            // Show confirmation
-            alert("Test notification sent! Check your " + 
-                (settings.notificationMethod === "both" ? "email and Microsoft Teams" : 
-                (settings.notificationMethod === "email" ? "email" : "Microsoft Teams")));
-        });
-    });
-}
-
-// Reset all settings to defaults
-function resetSettings() {
-    if (confirm("Are you sure you want to reset all notification settings to defaults?")) {
-        // Default settings
-        const defaultSettings = {
-            notifyOnComment: true,
-            notifyOnLabel: true,
-            notifyOnDueDate: true,
-            notifyOnSprintEnd: true,
-            watchedLabels: ["bug", "critical", "urgent"],
-            dueDateThreshold: 2,
-            sprintEndThreshold: 3,
-            notificationMethod: "teams",
-            userMapping: {}
-        };
-        
-        // Save default settings
-        browser.storage.sync.set({ 'notificationSettings': defaultSettings }, function() {
-            updateNotificationStatus(defaultSettings);
-            alert("Settings have been reset to defaults.");
-        });
-    }
-}

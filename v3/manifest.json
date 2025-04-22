@@ -13,12 +13,15 @@
   ],
   "host_permissions": [
     "https://*.atlassian.net/*",
-    "https://*.jira.com/*"
+    "https://*.jira.com/*",
+    "https://votre-chatbot.streamlit.app/*"
+
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icon.png",
       "48": "icon.png",
