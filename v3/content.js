@@ -1237,43 +1237,6 @@ function createBubbleChat() {
     
     content.appendChild(chatImage);
     chatBubble.appendChild(content);
-
-    // Bouton de fermeture
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "✖";
-    closeBtn.style.cssText = `
-        position: absolute;
-        top: 0px;
-        right: 0px;
-        width: 18px;
-        height: 18px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        transform: translate(50%, -50%);
-        z-index: 10001;
-    `;
-    closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        chatBubble.style.display = "none";
-        
-        // Stocker l'état dans le localStorage
-        localStorage.setItem("chatBubbleHidden", "true");
-        
-        // Réafficher après 1 heure
-        setTimeout(() => {
-            chatBubble.style.display = "flex";
-            localStorage.removeItem("chatBubbleHidden");
-        }, 3600000);
-    });
-    chatBubble.appendChild(closeBtn);
     
     // Important: Ajouter au document AVANT de créer le conteneur de chat
     document.body.appendChild(chatBubble);
@@ -1321,16 +1284,11 @@ function createBubbleChat() {
         }
     });
 
-    // Vérifier si la bulle était précédemment cachée
-    if (localStorage.getItem("chatBubbleHidden") === "true") {
-        chatBubble.style.display = "none";
-    } else {
-        // Ajouter un effet d'apparition
-        chatBubble.style.transform = "scale(0)";
-        setTimeout(() => {
-            chatBubble.style.transform = "scale(1)";
-        }, 100);
-    }
+    // Ajouter un effet d'apparition
+    chatBubble.style.transform = "scale(0)";
+    setTimeout(() => {
+        chatBubble.style.transform = "scale(1)";
+    }, 100);
 
     console.log("Chat bubble created and added to DOM with id:", chatBubble.id);
     return chatBubble;
