@@ -11,8 +11,33 @@
     "web-vitals": "^4.2.4",
     "webextension-polyfill": "^0.12.0"
   },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:extension.launchBackend",
+    "onCommand:extension.stopBackend"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.launchBackend",
+        "title": "Démarrer le Backend Streamlit"
+      },
+      {
+        "command": "extension.stopBackend",
+        "title": "Arrêter le Backend Streamlit"
+      }
+    ]
+  },
   "scripts": {
     "start": "react-scripts start",
+    "start-backend": "cd backend && .venv\\Scripts\\activate && streamlit run chatbot.py",
+    "start-all": "npm run build && start npm run start-backend && npm run start",
     "build": "react-scripts build && copy \"background.js\" \"build\\\"",
     "postbuild": "copy content.js build\\",
     "test": "react-scripts test",
