@@ -944,437 +944,528 @@ function handleDescriptionSection(field, text, cursorPos, segments) {
 
 // Affichage optimisé du menu d'options
 function showOptionsMenu(field, options, segmentType, filterText = '') {
-    // Supprimer le menu existant
-    if (optionsMenu) {
-        optionsMenu.remove();
-        optionsMenu = null;
-    }
-    
-    // Créer le nouveau menu
-    optionsMenu = document.createElement('div');
-    optionsMenu.className = 'options-menu';
-    optionsMenu.style.cssText = `
-        position: absolute;
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        max-width: 300px;
-        z-index: 10000;
-        overflow-y: auto;
-        max-height: 200px;
-    `;
-    
-    // Filtrer les options si un texte de filtre est fourni
-    let filteredOptions = options;
-    if (filterText) {
-        filterText = filterText.toLowerCase();
-        filteredOptions = options.filter(option => 
-            option.toLowerCase().startsWith(filterText)
-        );
-        
-        // Si aucune option ne commence par le filtre, utiliser contient
-        if (filteredOptions.length === 0) {
-            filteredOptions = options.filter(option => 
-                option.toLowerCase().includes(filterText)
-            );
-        }
-    }
-    
-    // Si aucune option ne correspond au filtre, afficher un message
-    if (filteredOptions.length === 0) {
-        const noMatch = document.createElement('div');
-        noMatch.className = 'no-option';
-        noMatch.textContent = 'Aucune option ne correspond à "' + filterText + '"';
-        noMatch.style.cssText = `
-            padding: 8px 10px;
-            font-size: 14px;
-            color: #999;
-            font-style: italic;
-            text-align: center;
-        `;
-        optionsMenu.appendChild(noMatch);
-    } else {
-        // Utiliser un fragment pour améliorer la performance
-        const fragment = document.createDocumentFragment();
-        
-        // Ajouter les options filtrées au menu
-        filteredOptions.forEach(option => {
-            const item = document.createElement('div');
-            item.className = 'option-item';
-            
-            // Mettre en évidence la partie filtrée si un filtre est appliqué
-            if (filterText) {
-                const lowerOption = option.toLowerCase();
-                const filterIndex = lowerOption.indexOf(filterText.toLowerCase());
-                
-                if (filterIndex >= 0) {
-                    const before = option.substring(0, filterIndex);
-                    const match = option.substring(filterIndex, filterIndex + filterText.length);
-                    const after = option.substring(filterIndex + filterText.length);
-                    
-                    item.innerHTML = before + '<strong style="background: #ffff99;">' + match + '</strong>' + after;
-                } else {
-                    item.textContent = option;
-                }
-            } else {
-                item.textContent = option;
-            }
-            
-            item.style.cssText = `
-                padding: 8px 10px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: background 0.2s;
-            `;
-            
-            // Utiliser des fonctions anonymes pré-liées pour optimiser les performances
-            const handleMouseOver = () => { item.style.background = '#f0f0f0'; };
-            const handleMouseOut = () => { item.style.background = 'white'; };
-            
-            item.addEventListener('mouseover', handleMouseOver);
-            item.addEventListener('mouseout', handleMouseOut);
-            
-            // Optimiser le gestionnaire de clic
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                selectOption(field, option, segmentType);
-                if (optionsMenu) {
-                    optionsMenu.remove();
-                    optionsMenu = null;
-                }
-                
-                // Réinitialiser le mode filtre
-                field.dataset.filterMode = "";
-                field.dataset.filterText = "";
-            });
-            
-            fragment.appendChild(item);
-        });
-        
-        optionsMenu.appendChild(fragment);
-    }
-    
-    // Ajouter le texte d'aide
-    const helpText = document.createElement('div');
-    helpText.className = 'help-text';
-    helpText.innerHTML = '<small>Tapez pour filtrer, utilisez Entrée pour sélectionner, Échap pour fermer</small>';
-    helpText.style.cssText = `
-        padding: 5px;
-        font-size: 11px;
-        color: #777;
-        text-align: center;
-        border-top: 1px solid #eee;
-    `;
-    optionsMenu.appendChild(helpText);
-    
-    // Positionner le menu sous le champ
-    const rect = field.getBoundingClientRect();
-    optionsMenu.style.left = rect.left + 'px';
-    optionsMenu.style.top = (rect.bottom + window.scrollY) + 'px';
-    optionsMenu.style.width = rect.width + 'px';
-    
-    // Ajouter le menu au document
-    document.body.appendChild(optionsMenu);
-    
-    // Sélectionner la première option s'il y en a
-    if (filteredOptions.length > 0) {
-        const firstOption = optionsMenu.querySelector('.option-item');
-        if (firstOption) {
-            firstOption.classList.add('selected');
-            firstOption.style.background = '#f0f0f0';
-        }
-    }
-    
-    // Fermer le menu lors d'un clic ailleurs
-    const closeMenuOnClick = (e) => {
-        if (optionsMenu && !optionsMenu.contains(e.target) && e.target !== field) {
-            if (optionsMenu.parentNode) {
-                optionsMenu.remove();
-            }
-            optionsMenu = null;
-            
-            field.dataset.filterMode = "";
-            field.dataset.filterText = "";
-            
-            document.removeEventListener('click', closeMenuOnClick);
-        }
-    };
-    
-    // Mettre un délai pour éviter que le menu ne se ferme immédiatement
-    setTimeout(() => {
-        document.addEventListener('click', closeMenuOnClick);
-    }, 10);
+  // Supprimer le menu existant
+  if (optionsMenu) {
+      optionsMenu.remove();
+      optionsMenu = null;
+  }
+  
+  console.log(`showOptionsMenu appelé - segment: ${segmentType}, filtre: "${filterText}"`);
+  console.log(`Options disponibles:`, options);
+  
+  // Créer le nouveau menu
+  optionsMenu = document.createElement('div');
+  optionsMenu.className = 'options-menu';
+  optionsMenu.style.cssText = `
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      max-width: 300px;
+      z-index: 10000;
+      overflow-y: auto;
+      max-height: 200px;
+  `;
+  
+  // Titre du menu montrant le type de segment
+  const menuTitle = document.createElement('div');
+  menuTitle.className = 'menu-title';
+  menuTitle.style.cssText = `
+      padding: 6px 10px;
+      background: #f4f4f4;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+      font-size: 12px;
+      color: #555;
+  `;
+  menuTitle.textContent = segmentType == 0 ? 'Options IP' : 'Options Activity';
+  optionsMenu.appendChild(menuTitle);
+  
+  // Filtrer les options si un texte de filtre est fourni
+  let filteredOptions = options;
+  
+  if (filterText && filterText.trim() !== '') {
+      filterText = filterText.toLowerCase();
+      console.log(`Filtrage avec le texte: "${filterText}"`);
+      
+      // CORRECTION IMPORTANTE: Rechercher si une option CONTIENT le texte (pas seulement commence par)
+      filteredOptions = options.filter(option => 
+          option.toLowerCase().includes(filterText)
+      );
+      
+      console.log(`Résultat du filtrage:`, filteredOptions);
+  }
+  
+  // Si aucune option ne correspond au filtre, afficher un message
+  if (filteredOptions.length === 0) {
+      const noMatch = document.createElement('div');
+      noMatch.className = 'no-option';
+      noMatch.textContent = 'Aucune option ne correspond à "' + filterText + '"';
+      noMatch.style.cssText = `
+          padding: 8px 10px;
+          font-size: 14px;
+          color: #999;
+          font-style: italic;
+          text-align: center;
+      `;
+      optionsMenu.appendChild(noMatch);
+  } else {
+      // Utiliser un fragment pour améliorer la performance
+      const fragment = document.createDocumentFragment();
+      
+      // Ajouter les options filtrées au menu
+      filteredOptions.forEach(option => {
+          const item = document.createElement('div');
+          item.className = 'option-item';
+          
+          // Mettre en évidence la partie filtrée si un filtre est appliqué
+          if (filterText && filterText.trim() !== '') {
+              const lowerOption = option.toLowerCase();
+              const filterIndex = lowerOption.indexOf(filterText.toLowerCase());
+              
+              if (filterIndex >= 0) {
+                  const before = option.substring(0, filterIndex);
+                  const match = option.substring(filterIndex, filterIndex + filterText.length);
+                  const after = option.substring(filterIndex + filterText.length);
+                  
+                  item.innerHTML = before + '<strong style="background:rgb(153, 223, 255);">' + match + '</strong>' + after;
+              } else {
+                  item.textContent = option;
+              }
+          } else {
+              item.textContent = option;
+          }
+          
+          item.style.cssText = `
+              padding: 8px 10px;
+              cursor: pointer;
+              font-size: 14px;
+              transition: background 0.2s;
+          `;
+          
+          // Utiliser des fonctions anonymes pré-liées pour optimiser les performances
+          const handleMouseOver = () => { item.style.background = '#f0f0f0'; };
+          const handleMouseOut = () => { item.style.background = 'white'; };
+          
+          item.addEventListener('mouseover', handleMouseOver);
+          item.addEventListener('mouseout', handleMouseOut);
+          
+          // Optimiser le gestionnaire de clic
+          item.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              selectOption(field, option, segmentType);
+              if (optionsMenu) {
+                  optionsMenu.remove();
+                  optionsMenu = null;
+              }
+              
+              // Réinitialiser le mode filtre
+              field.dataset.filterMode = "";
+              field.dataset.filterText = "";
+          });
+          
+          fragment.appendChild(item);
+      });
+      
+      optionsMenu.appendChild(fragment);
+  }
+  
+  // Ajouter le texte d'aide avec indication du type de segment
+  const helpText = document.createElement('div');
+  helpText.className = 'help-text';
+  helpText.innerHTML = `<small>Filtrage ${segmentType == 0 ? 'IP' : 'Activity'} - Tapez pour filtrer, Entrée pour sélectionner, Échap pour fermer</small>`;
+  helpText.style.cssText = `
+      padding: 5px;
+      font-size: 11px;
+      color: #777;
+      text-align: center;
+      border-top: 1px solid #eee;
+  `;
+  optionsMenu.appendChild(helpText);
+  
+  // Positionner le menu sous le champ
+  const rect = field.getBoundingClientRect();
+  optionsMenu.style.left = rect.left + 'px';
+  optionsMenu.style.top = (rect.bottom + window.scrollY) + 'px';
+  optionsMenu.style.width = rect.width + 'px';
+  
+  // Ajouter le menu au document
+  document.body.appendChild(optionsMenu);
+  
+  // Sélectionner la première option s'il y en a
+  if (filteredOptions.length > 0) {
+      const firstOption = optionsMenu.querySelector('.option-item');
+      if (firstOption) {
+          firstOption.classList.add('selected');
+          firstOption.style.background = '#f0f0f0';
+      }
+  }
+  
+  // Fermer le menu lors d'un clic ailleurs
+  const closeMenuOnClick = (e) => {
+      if (optionsMenu && !optionsMenu.contains(e.target) && e.target !== field) {
+          if (optionsMenu.parentNode) {
+              optionsMenu.remove();
+          }
+          optionsMenu = null;
+          
+          field.dataset.filterMode = "";
+          field.dataset.filterText = "";
+          
+          document.removeEventListener('click', closeMenuOnClick);
+      }
+  };
+  
+  // Mettre un délai pour éviter que le menu ne se ferme immédiatement
+  setTimeout(() => {
+      document.addEventListener('click', closeMenuOnClick);
+  }, 10);
 }
-
-// Fonction optimisée pour sélectionner une option
 function selectOption(field, option, segmentType) {
-    const currentValue = field.value;
-    const cursorPos = field.selectionStart;
-    
-    // Traiter selon le mode et le segment
-    if (segmentType === 0) { // IP
-        // Déterminer le mode
-        const mode = field.dataset.mode || "new-ip";
-        
-        if (mode === "replace-ip") {
-            // Remplacer l'IP existant
-            const afterIp = field.dataset.afterIp || "";
-            field.value = `[${option}]${afterIp}`;
-            setTimeout(() => field.setSelectionRange(option.length + 2, option.length + 2), 0);
-        } else {
-            // Nouveau IP
-            if (currentValue.startsWith('[')) {
-                // Compléter le crochet ouvert
-                field.value = `[${option}]${currentValue.substring(1)}`;
-            } else {
-                // Ajouter un nouveau segment IP
-                field.value = `[${option}]${currentValue}`;
-            }
-            setTimeout(() => field.setSelectionRange(option.length + 2, option.length + 2), 0);
-        }
-    } else if (segmentType === 1) { // Activity
-        // Déterminer le mode
-        const mode = field.dataset.mode || "new-activity";
-        
-        if (mode === "replace-activity") {
-            // Remplacer l'activité existante
-            const beforeActivity = field.dataset.beforeActivity || "";
-            const afterActivity = field.dataset.afterActivity || "";
-            field.value = `${beforeActivity}[${option}]${afterActivity}`;
-            
-            // Positionner le curseur après le segment Activity
-            const newCursorPos = beforeActivity.length + option.length + 2;
-            setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
-        } else {
-            // Nouvelle activité
-            const ipEnd = currentValue.indexOf(']');
-            
-            if (ipEnd !== -1) {
-                // Déterminer si un crochet ouvrant pour l'activité existe déjà
-                const activityStart = currentValue.indexOf('[', ipEnd);
-                
-                if (activityStart !== -1 && activityStart < cursorPos) {
-                    // Compléter le crochet ouvert existant
-                    field.value = currentValue.substring(0, activityStart + 1) + 
-                                option + ']' + 
-                                currentValue.substring(activityStart + 1);
-                } else {
-                    // Ajouter un espace et un nouveau segment Activity après IP
-                    field.value = currentValue.substring(0, ipEnd + 1) + 
-                                ` [${option}]` + 
-                                currentValue.substring(ipEnd + 1);
-                }
-                
-                // Positionner le curseur après le segment Activity
-                const newActivityEnd = field.value.indexOf(']', ipEnd + 1);
-                if (newActivityEnd !== -1) {
-                    setTimeout(() => field.setSelectionRange(newActivityEnd + 1, newActivityEnd + 1), 0);
-                }
-            } else {
-                // Pas de segment IP valide, recommencer avec IP
-                field.value = `[${validIPOptions[0]}] [${option}]`;
-                setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
-            }
-        }
-    }
-    
-    // Nettoyer les données temporaires
-    delete field.dataset.mode;
-    delete field.dataset.afterIp;
-    delete field.dataset.beforeActivity;
-    delete field.dataset.afterActivity;
-    
-    // Vérifier si on doit ajouter automatiquement un séparateur pour la description
-    const segments = parseTextSegments(field.value);
-    if (segments.length === 2 && !field.value.includes(':')) {
-        field.value += ' : ';
-        setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
-    }
-    
-    // Déclencher un événement input pour activer les validateurs
-    field.dispatchEvent(new Event('input', { bubbles: true }));
+  const currentValue = field.value;
+  const cursorPos = field.selectionStart;
+  
+  console.log(`Sélection d'option: ${option} pour le segment ${segmentType}`);
+  
+  // Traiter selon le mode et le segment
+  if (segmentType == 0) { // IP - Utiliser == au lieu de === pour comparaison plus souple
+      // Déterminer le mode
+      const mode = field.dataset.mode || "new-ip";
+      console.log(`Mode IP: ${mode}`);
+      
+      if (mode === "replace-ip") {
+          // Remplacer l'IP existant
+          const afterIp = field.dataset.afterIp || "";
+          field.value = `[${option}]${afterIp}`;
+          
+          // Positionner le curseur après le segment IP
+          const newCursorPos = option.length + 2;
+          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+          
+          // Nettoyer les données temporaires
+          delete field.dataset.mode;
+          delete field.dataset.afterIp;
+      } else {
+          // Nouveau IP
+          if (currentValue.startsWith('[')) {
+              // Compléter le crochet ouvert
+              field.value = `[${option}]${currentValue.substring(1)}`;
+          } else {
+              // Ajouter un nouveau segment IP
+              field.value = `[${option}]${currentValue}`;
+          }
+          
+          // Positionner le curseur après le segment IP
+          const newCursorPos = option.length + 2;
+          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+      }
+  } else if (segmentType == 1) { // Activity - Utiliser == au lieu de === pour comparaison plus souple
+      // Déterminer le mode
+      const mode = field.dataset.mode || "new-activity";
+      console.log(`Mode Activity: ${mode}`);
+      
+      if (mode === "replace-activity") {
+          // Remplacer l'activité existante
+          const beforeActivity = field.dataset.beforeActivity || "";
+          const afterActivity = field.dataset.afterActivity || "";
+          field.value = `${beforeActivity}[${option}]${afterActivity}`;
+          
+          // Positionner le curseur après le segment Activity
+          const newCursorPos = beforeActivity.length + option.length + 2;
+          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+          
+          // Nettoyer les données temporaires
+          delete field.dataset.mode;
+          delete field.dataset.beforeActivity;
+          delete field.dataset.afterActivity;
+      } else {
+          // Nouvelle activité
+          const ipEnd = currentValue.indexOf(']');
+          
+          if (ipEnd !== -1) {
+              // Déterminer si un crochet ouvrant pour l'activité existe déjà
+              const activityStart = currentValue.indexOf('[', ipEnd);
+              
+              if (activityStart !== -1 && activityStart < cursorPos) {
+                  // Compléter le crochet ouvert existant
+                  field.value = currentValue.substring(0, activityStart + 1) + 
+                              option + ']' + 
+                              currentValue.substring(activityStart + 1);
+              } else {
+                  // Ajouter un espace et un nouveau segment Activity après IP
+                  field.value = currentValue.substring(0, ipEnd + 1) + 
+                              ` [${option}]` + 
+                              currentValue.substring(ipEnd + 1);
+              }
+              
+              // Positionner le curseur après le segment Activity
+              const newActivityEnd = field.value.indexOf(']', ipEnd + 1);
+              if (newActivityEnd !== -1) {
+                  setTimeout(() => field.setSelectionRange(newActivityEnd + 1, newActivityEnd + 1), 0);
+              }
+          } else {
+              // Pas de segment IP valide, recommencer avec IP
+              field.value = `[${validIPOptions[0]}] [${option}]`;
+              setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
+          }
+      }
+  } else {
+      console.log(`Type de segment non reconnu: ${segmentType}`);
+  }
+  
+  // Vérifier si on doit ajouter automatiquement un séparateur pour la description
+  const segments = parseTextSegments(field.value);
+  if (segments.length === 2 && !field.value.includes(':')) {
+      field.value += ' : ';
+      setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
+  }
+  
+  // Déclencher un événement input pour activer les validateurs
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  
+  // Vérifier le texte pour détecter les erreurs
+  checkText(field);
 }
 
+
+function enhanceKeyboardNavigation() {
+  document.addEventListener('keydown', function(e) {
+      if (!optionsMenu) return;
+      
+      const options = Array.from(optionsMenu.querySelectorAll('.option-item'));
+      if (options.length === 0) return;
+      
+      const selectedOption = optionsMenu.querySelector('.option-item.selected');
+      let currentIndex = selectedOption ? options.indexOf(selectedOption) : 0;
+      
+      // Naviguer avec les flèches haut/bas
+      if (e.key === 'ArrowDown' || e.keyCode === 40) {
+          e.preventDefault();
+          if (currentIndex < options.length - 1) currentIndex++;
+          else currentIndex = 0; // Boucler au début
+      } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
+          e.preventDefault();
+          if (currentIndex > 0) currentIndex--;
+          else currentIndex = options.length - 1; // Boucler à la fin
+      } else {
+          return; // Ne rien faire pour les autres touches
+      }
+      
+      // Mettre à jour la sélection
+      options.forEach(opt => {
+          opt.classList.remove('selected');
+          opt.style.background = 'white';
+      });
+      
+      options[currentIndex].classList.add('selected');
+      options[currentIndex].style.background = '#f0f0f0';
+      
+      // Faire défiler si nécessaire pour que l'option sélectionnée soit visible
+      options[currentIndex].scrollIntoView({ block: 'nearest' });
+  });
+}
+
+// S'assurer que la navigation au clavier est activée
+enhanceKeyboardNavigation();
 // Gestionnaire de clavier optimisé pour que ? fonctionne dans n'importe quel segment
 function handleKeyDown(e) {
-    // S'assurer que le champ est en focus
-    if (document.activeElement !== this) {
-        return;
-    }
-    
-    // Capturer la touche ? pour déclencher l'assistant dans n'importe quel segment
-    if (e.key === '?' || e.keyCode === 191) {
-        e.preventDefault();
-        
-        // Obtenir les informations sur le champ et la position du curseur
-        const text = this.value;
-        const cursorPos = this.selectionStart;
-        
-        // Analyser le texte pour identifier les segments
-        const segments = parseTextSegments(text);
-        
-        // Déterminer précisément le segment actuel en fonction de la position du curseur
-        const segmentIndex = getSegmentAtCursor(text, cursorPos);
-        
-        console.log("Position du curseur:", cursorPos, "Segment détecté:", segmentIndex);
-        
-        // Stocker le segment actuel et la position pour le filtrage
-        this.dataset.filterMode = "start";
-        this.dataset.filterPos = cursorPos.toString();
-        this.dataset.filterText = "";
-        this.dataset.currentSegment = segmentIndex.toString();
-        
-        // Traiter selon le segment détecté
-        switch(segmentIndex) {
-            case 0: // IP segment
-                // Si on est dans un segment IP existant, le remplacer
-                const ipSegment = segments.find(s => s.type === 'IP');
-                if (ipSegment && cursorPos >= ipSegment.start && cursorPos <= ipSegment.end) {
-                    // Préparer le champ pour remplacer le segment IP
-                    const beforeIP = text.substring(0, ipSegment.start);
-                    const afterIP = text.substring(ipSegment.end + 1);
-                    this.dataset.afterIp = afterIP;
-                    this.dataset.mode = "replace-ip";
-                    this.value = beforeIP + '[';
-                    this.dataset.filterPos = beforeIP.length + 1;
-                    setTimeout(() => this.setSelectionRange(beforeIP.length + 1, beforeIP.length + 1), 0);
-                    showOptionsMenu(this, validIPOptions, 0);
-                } else {
-                    // Sinon, traiter normalement le segment IP
-                    handleIPSection(this, text, cursorPos, segments);
-                }
-                break;
-                
-            case 1: // Activity segment
-                // Si on est dans un segment Activity existant, le remplacer
-                const activitySegment = segments.find(s => s.type === 'Activity');
-                if (activitySegment && cursorPos >= activitySegment.start && cursorPos <= activitySegment.end) {
-                    // Préparer le champ pour remplacer le segment Activity
-                    const beforeActivity = text.substring(0, activitySegment.start);
-                    const afterActivity = text.substring(activitySegment.end + 1);
-                    this.dataset.beforeActivity = beforeActivity;
-                    this.dataset.afterActivity = afterActivity;
-                    this.dataset.mode = "replace-activity";
-                    this.value = beforeActivity + '[';
-                    this.dataset.filterPos = beforeActivity.length + 1;
-                    setTimeout(() => this.setSelectionRange(beforeActivity.length + 1, beforeActivity.length + 1), 0);
-                    showOptionsMenu(this, validActivities, 1);
-                } else {
-                    // Sinon, traiter normalement le segment Activity
-                    handleActivitySection(this, text, cursorPos, segments);
-                }
-                break;
-                
-            case 2: // Description segment
-                // Pour la description, il n'y a pas d'autocomplétion, mais on s'assure
-                // que le format est correct
-                handleDescriptionSection(this, text, cursorPos, segments);
-                break;
-                
-            default:
-                // Si on ne peut pas déterminer le segment, essayer IP par défaut
-                handleIPSection(this, text, cursorPos, segments);
-        }
-    }
-    // Si on est en mode filtre, capturer les caractères pour filtrer les options
-    else if (this.dataset.filterMode === "start" || this.dataset.filterMode === "filtering") {
-        // Mise à jour du mode
-        this.dataset.filterMode = "filtering";
-        
-        // Obtenir le segment actuel depuis les données stockées
-        const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
-        
-        // Si la touche entrée est pressée, sélectionner la première option filtrée
-        if ((e.key === 'Enter' || e.keyCode === 13) && optionsMenu && optionsMenu.querySelector('.option-item')) {
-            e.preventDefault();
-            const firstOption = optionsMenu.querySelector('.option-item');
-            firstOption.click();
-            return;
-        }
-        
-        // Si Escape est pressé, annuler le filtrage
-        if (e.key === 'Escape' || e.keyCode === 27) {
-            e.preventDefault();
-            if (optionsMenu) {
-                optionsMenu.remove();
-                optionsMenu = null;
-            }
-            this.dataset.filterMode = "";
-            this.dataset.filterText = "";
-            return;
-        }
-        
-        // Gestionnaire pour les caractères imprimables et la touche Backspace
-        setTimeout(() => {
-            // Ne rien faire si le menu d'options a été fermé
-            if (!optionsMenu) {
-                this.dataset.filterMode = "";
-                this.dataset.filterText = "";
-                return;
-            }
-            
-            // Mettre à jour le texte du filtre
-            const currentPos = this.selectionStart;
-            const filterStartPos = parseInt(this.dataset.filterPos) || 0;
-            
-            // Capturer le texte tapé pour le filtre
-            if (currentPos >= filterStartPos) {
-                this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
-                console.log("Filtrage avec:", this.dataset.filterText, "pour segment", segmentIndex);
-            } else {
-                this.dataset.filterText = "";
-                this.dataset.filterPos = currentPos.toString();
-            }
-            
-            // Filtrer les options selon le segment actuel
-            const filterText = this.dataset.filterText.toLowerCase();
-            let options = segmentIndex === 0 ? validIPOptions : validActivities;
-            
-            // Mettre à jour le menu avec les options filtrées
-            showOptionsMenu(this, options, segmentIndex, filterText);
-        }, 0);
-    }
+  // S'assurer que le champ est en focus
+  if (document.activeElement !== this) {
+      return;
+  }
+  
+  // Capturer la touche ? pour déclencher l'assistant dans n'importe quel segment
+  if (e.key === '?' || e.keyCode === 191) {
+      e.preventDefault();
+      
+      // Obtenir les informations sur le champ et la position du curseur
+      const text = this.value;
+      const cursorPos = this.selectionStart;
+      
+      // Analyser le texte pour identifier les segments
+      const segments = parseTextSegments(text);
+      
+      // Déterminer précisément le segment actuel en fonction de la position du curseur
+      const segmentIndex = getSegmentAtCursor(text, cursorPos);
+      
+      console.log("Position du curseur:", cursorPos, "Segment détecté:", segmentIndex);
+      
+      // Stocker le segment actuel et la position pour le filtrage
+      this.dataset.filterMode = "start";
+      this.dataset.filterPos = cursorPos.toString();
+      this.dataset.filterText = "";
+      this.dataset.currentSegment = segmentIndex.toString();
+      
+      // Traiter selon le segment détecté
+      switch(segmentIndex) {
+          case 0: // IP segment
+              // Si on est dans un segment IP existant, le remplacer
+              const ipSegment = segments.find(s => s.type === 'IP');
+              if (ipSegment && cursorPos >= ipSegment.start && cursorPos <= ipSegment.end) {
+                  // Préparer le champ pour remplacer le segment IP
+                  const beforeIP = text.substring(0, ipSegment.start);
+                  const afterIP = text.substring(ipSegment.end + 1);
+                  this.dataset.afterIp = afterIP;
+                  this.dataset.mode = "replace-ip";
+                  this.value = beforeIP + '[';
+                  this.dataset.filterPos = beforeIP.length + 1;
+                  setTimeout(() => this.setSelectionRange(beforeIP.length + 1, beforeIP.length + 1), 0);
+                  showOptionsMenu(this, validIPOptions, 0);
+              } else {
+                  // Sinon, traiter normalement le segment IP
+                  handleIPSection(this, text, cursorPos, segments);
+              }
+              break;
+              
+          case 1: // Activity segment
+              // Si on est dans un segment Activity existant, le remplacer
+              const activitySegment = segments.find(s => s.type === 'Activity');
+              if (activitySegment && cursorPos >= activitySegment.start && cursorPos <= activitySegment.end) {
+                  // Préparer le champ pour remplacer le segment Activity
+                  const beforeActivity = text.substring(0, activitySegment.start);
+                  const afterActivity = text.substring(activitySegment.end + 1);
+                  this.dataset.beforeActivity = beforeActivity;
+                  this.dataset.afterActivity = afterActivity;
+                  this.dataset.mode = "replace-activity";
+                  this.value = beforeActivity + '[';
+                  this.dataset.filterPos = beforeActivity.length + 1;
+                  setTimeout(() => this.setSelectionRange(beforeActivity.length + 1, beforeActivity.length + 1), 0);
+                  showOptionsMenu(this, validActivities, 1);
+              } else {
+                  // Sinon, traiter normalement le segment Activity
+                  handleActivitySection(this, text, cursorPos, segments);
+              }
+              break;
+              
+          case 2: // Description segment
+              // Pour la description, il n'y a pas d'autocomplétion, mais on s'assure
+              // que le format est correct
+              handleDescriptionSection(this, text, cursorPos, segments);
+              break;
+              
+          default:
+              // Si on ne peut pas déterminer le segment, essayer IP par défaut
+              handleIPSection(this, text, cursorPos, segments);
+      }
+  }
+  // Si on est en mode filtre, capturer les caractères pour filtrer les options
+  else if (this.dataset.filterMode === "start" || this.dataset.filterMode === "filtering") {
+      // Mise à jour du mode
+      this.dataset.filterMode = "filtering";
+      
+      // Obtenir le segment actuel depuis les données stockées - IMPORTANT: s'assurer que segmentIndex est correctement interprété
+      const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
+      console.log("Mode filtrage actif - segment:", segmentIndex);
+      
+      // Si la touche entrée est pressée, sélectionner la première option filtrée
+      if ((e.key === 'Enter' || e.keyCode === 13) && optionsMenu && optionsMenu.querySelector('.option-item')) {
+          e.preventDefault();
+          const firstOption = optionsMenu.querySelector('.option-item');
+          firstOption.click();
+          return;
+      }
+      
+      // Si Escape est pressé, annuler le filtrage
+      if (e.key === 'Escape' || e.keyCode === 27) {
+          e.preventDefault();
+          if (optionsMenu) {
+              optionsMenu.remove();
+              optionsMenu = null;
+          }
+          this.dataset.filterMode = "";
+          this.dataset.filterText = "";
+          return;
+      }
+      
+      // Gestionnaire pour les caractères imprimables et la touche Backspace
+      setTimeout(() => {
+          // Ne rien faire si le menu d'options a été fermé
+          if (!optionsMenu) {
+              this.dataset.filterMode = "";
+              this.dataset.filterText = "";
+              return;
+          }
+          
+          // Mettre à jour le texte du filtre
+          const currentPos = this.selectionStart;
+          const filterStartPos = parseInt(this.dataset.filterPos) || 0;
+          
+          // Capturer le texte tapé pour le filtre
+          if (currentPos >= filterStartPos) {
+              this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
+              console.log("Filtrage avec:", this.dataset.filterText, "pour segment", segmentIndex);
+          } else {
+              this.dataset.filterText = "";
+              this.dataset.filterPos = currentPos.toString();
+          }
+          
+          // CORRECTION IMPORTANTE: s'assurer que le bon ensemble d'options est utilisé selon le segment
+          const filterText = this.dataset.filterText.toLowerCase();
+          
+          // Utiliser explicitement les options correctes selon le segment
+          let options;
+          if (segmentIndex == 0) { // Segment IP - utiliser == au lieu de === pour une comparaison plus souple
+              options = validIPOptions;
+              console.log("Utilisation des options IP pour le filtrage");
+          } else if (segmentIndex == 1) { // Segment Activity
+              options = validActivities;
+              console.log("Utilisation des options Activity pour le filtrage");
+          } else {
+              // Par défaut, utiliser IP
+              options = validIPOptions;
+              console.log("Segment non reconnu, utilisation des options IP par défaut");
+          }
+          
+          // Mettre à jour le menu avec les options filtrées et le bon type de segment
+          showOptionsMenu(this, options, segmentIndex, filterText);
+      }, 0);
+  }
 }
+
+
+
 
 // Fonction pour attacher le gestionnaire de filtrage
 function attachFilteringHandler(field) {
-    // Supprimer le gestionnaire existant pour éviter les doublons
-    if (field._inputHandler) {
-        field.removeEventListener('input', field._inputHandler);
-    }
-    
-    // Fonction de filtrage en temps réel
-    const inputHandler = function() {
-        // Ne filtrer que si on est en mode filtrage
-        if (this.dataset.filterMode === "filtering" && optionsMenu) {
-            const currentPos = this.selectionStart;
-            const filterStartPos = parseInt(this.dataset.filterPos) || 0;
-            const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
-            
-            // Mise à jour du texte de filtre
-            if (currentPos >= filterStartPos) {
-                this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
-            } else {
-                // Si le curseur a reculé, réinitialiser
-                this.dataset.filterText = "";
-                this.dataset.filterPos = currentPos.toString();
-            }
-            
-            // Appliquer le filtrage selon le segment actuel
-            const options = segmentIndex === 0 ? validIPOptions : validActivities;
-            showOptionsMenu(this, options, segmentIndex, this.dataset.filterText);
-        }
-    };
-    
-    // Stocker la référence pour pouvoir la supprimer plus tard
-    field._inputHandler = inputHandler;
-    
-    // Attacher le gestionnaire optimisé
-    field.addEventListener('input', inputHandler);
+  // Supprimer le gestionnaire existant pour éviter les doublons
+  if (field._inputHandler) {
+      field.removeEventListener('input', field._inputHandler);
+  }
+  
+  // Fonction de filtrage en temps réel améliorée
+  const inputHandler = function() {
+      // Ne filtrer que si on est en mode filtrage
+      if (this.dataset.filterMode === "filtering" && optionsMenu) {
+          const currentPos = this.selectionStart;
+          const filterStartPos = parseInt(this.dataset.filterPos) || 0;
+          const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
+          
+          // Mise à jour du texte de filtre
+          if (currentPos >= filterStartPos) {
+              this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
+              console.log("Mise à jour du filtre:", this.dataset.filterText);
+          } else {
+              // Si le curseur a reculé, réinitialiser
+              this.dataset.filterText = "";
+              this.dataset.filterPos = currentPos.toString();
+          }
+          
+          // Appliquer le filtrage selon le segment actuel
+          const options = segmentIndex === 0 ? validIPOptions : validActivities;
+          showOptionsMenu(this, options, segmentIndex, this.dataset.filterText);
+      }
+  };
+  
+  // Stocker la référence pour pouvoir la supprimer plus tard
+  field._inputHandler = inputHandler;
+  
+  // Attacher le gestionnaire optimisé
+  field.addEventListener('input', inputHandler);
 }
+
 
 // Fonction optimisée pour l'initialisation de l'autocomplétion
 function initSummaryAutocomplete() {
@@ -1399,7 +1490,7 @@ function initSummaryAutocomplete() {
     summaryField.dataset.autocompleteInitialized = "true";
     
     // Définir le placeholder
-    summaryField.placeholder = "Type ? for l'help ";
+    summaryField.placeholder = "Type ? for help ";
     
     // Supprimer les écouteurs existants pour éviter les doublons
     if (summaryField._keydownHandler) {
@@ -1421,245 +1512,466 @@ function initSummaryAutocomplete() {
     }
 }
 
-// Fonction améliorée pour ajouter un tooltip adaptatif (fixe à droite)
 function addAdaptiveTooltip() {
-    // Supprimer les tooltips existants pour éviter les doublons
-    document.querySelectorAll('.jira-tooltip-icon').forEach(tooltip => tooltip.remove());
-    
-    // Trouver le champ summary avec un sélecteur simplifié
-    const summaryField = document.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field');
-    
-    if (!summaryField || summaryField.offsetParent === null) {
-        return null;
-    }
-    
-    // Créer l'icône du tooltip
-    const tooltip = document.createElement('div');
-    tooltip.className = 'jira-tooltip-icon';
-    tooltip.style.cssText = `
-        position: absolute;
-        width: 28px;
-        height: 28px;
-        background-color: #7B61FF;
-        border-radius: 50%;
-        color: white;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 10000;
-        font-size: 16px;
-        font-family: Arial, sans-serif;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    `;
-    tooltip.textContent = 'i';
-    
-    // Positionner le tooltip à l'extérieur à droite du champ (FIXE)
-    const rect = summaryField.getBoundingClientRect();
-    tooltip.style.position = "absolute"; // Position absolue
-    tooltip.style.top = (rect.top + window.scrollY + (rect.height - 28) / 2) + "px";
-    tooltip.style.left = (rect.right + window.scrollX + 10) + "px"; // 10px à droite du champ
-    
-    // Contenu du tooltip
-    const tooltipContent = document.createElement('div');
-    tooltipContent.className = 'tooltip-content';
-    tooltipContent.style.cssText = `
-        position: absolute;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        width: 250px;
-        z-index: 10001;
-        display: none;
-        text-align: center;
-        font-weight: normal;
-        color: #333;
-        line-height: 1.4;
-    `;
-    
-    // Contenu HTML du tooltip
-    tooltipContent.innerHTML = `
-        <div style="position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 20px; height: 20px; background: white; box-shadow: 3px 3px 5px rgba(0,0,0,0.1);"></div>
-        <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: center;">
-            <span style="width: 20px; height: 20px; border-radius: 50%; background-color: #7B61FF; color: white; text-align: center; line-height: 20px; font-size: 12px; margin-right: 8px; display: inline-block;">i</span>
-            <span style="font-weight: bold; font-size: 16px; color: #333;">Format requis</span>
-        </div>
-        <p style="margin-bottom: 8px; font-weight: bold;">[IPNext/IPx] [Activity] : Description</p>
-        <div style="text-align: left; margin-top: 10px;">
-            <p style="margin: 0;">Options IP: IPNext, IP1, IP2, IP3</p>
-            <p style="margin: 0;">Options Activity: Nightly, Coverage, Periodic_2h, Weekly, FV, PreInt, PreGate</p>
-            <p style="margin-top: 8px;">Tapez <strong>?</strong> pour accéder aux suggestions d'autocomplétion.</p>
-        </div>
-    `;
-    
-    // Ajouter le contenu à l'icône
-    tooltip.appendChild(tooltipContent);
-    document.body.appendChild(tooltip);
-    
-    // Gérer les événements de survol
-    tooltip.addEventListener('mouseenter', () => {
-        tooltipContent.style.display = 'block';
-    });
-    
-    tooltip.addEventListener('mouseleave', () => {
-        tooltipContent.style.display = 'none';
-    });
-    
-    // Fonction pour mettre à jour la position
-    function updatePosition() {
-        if (summaryField.offsetParent === null) {
-            tooltip.style.display = 'none';
-            return;
-        }
-        
-        tooltip.style.display = 'flex';
-        const newRect = summaryField.getBoundingClientRect();
-        tooltip.style.top = (newRect.top + window.scrollY + (newRect.height - 28) / 2) + "px";
-        tooltip.style.left = (newRect.right + window.scrollX + 10) + "px"; // Maintenir 10px à droite du champ
-    }
-    
-    // Stocker la référence pour pouvoir la supprimer plus tard
-    tooltip._updatePosition = updatePosition;
-    
-    // Optimiser les écouteurs d'événements avec passive: true
-    window.addEventListener('scroll', updatePosition, { passive: true });
-    window.addEventListener('resize', updatePosition, { passive: true });
-    summaryField.addEventListener('input', updatePosition, { passive: true });
-    summaryField.addEventListener('focus', updatePosition, { passive: true });
-    
-    return tooltip;
-}
+  console.log('Démarrage de addAdaptiveTooltip');
+  
+  // Supprimer les tooltips existants pour éviter les doublons
+  document.querySelectorAll('.jira-tooltip-icon').forEach(tooltip => {
+      tooltip.remove();
+      console.log('Ancien tooltip supprimé');
+  });
+  
+  // Recherche du champ summary par différentes méthodes
+  let summaryField = document.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field, input[aria-label="Résumé"], input[placeholder*="Type ? for help"]');
+  
+  // Si on ne trouve pas avec le sélecteur classique, essayer d'autres méthodes
+  if (!summaryField) {
+      console.log('Recherche alternative du champ summary');
+      
+      // Recherche par label
+      const labels = Array.from(document.querySelectorAll('label, div'));
+      const resumeLabel = labels.find(el => el.textContent && el.textContent.includes('Résumé'));
+      
+      if (resumeLabel) {
+          console.log('Label Résumé trouvé:', resumeLabel);
+          // Chercher l'input proche du label
+          let inputCandidate = null;
+          
+          // Méthode 1: chercher le prochain élément après le label
+          inputCandidate = resumeLabel.nextElementSibling;
+          while (inputCandidate && !['INPUT', 'TEXTAREA'].includes(inputCandidate.tagName)) {
+              inputCandidate = inputCandidate.querySelector('input, textarea') || inputCandidate.nextElementSibling;
+          }
+          
+          // Méthode 2: chercher par ID référencé
+          if (!inputCandidate && resumeLabel.getAttribute('for')) {
+              inputCandidate = document.getElementById(resumeLabel.getAttribute('for'));
+          }
+          
+          // Méthode 3: chercher un input visible dans la même zone
+          if (!inputCandidate) {
+              const rect = resumeLabel.getBoundingClientRect();
+              const inputs = document.querySelectorAll('input, textarea');
+              for (const input of inputs) {
+                  const inputRect = input.getBoundingClientRect();
+                  // Si l'input est proche verticalement du label
+                  if (Math.abs(inputRect.top - rect.bottom) < 50) {
+                      inputCandidate = input;
+                      break;
+                  }
+              }
+          }
+          
+          if (inputCandidate) {
+              console.log('Input résumé trouvé par méthode alternative:', inputCandidate);
+              summaryField = inputCandidate;
+          }
+      }
+      
+      // Si toujours pas trouvé, essayer de trouver visuellement l'input rouge d'erreur
+      if (!summaryField) {
+          const redBorderedInputs = Array.from(document.querySelectorAll('input, textarea')).filter(el => {
+              const style = window.getComputedStyle(el);
+              return style.borderColor.includes('red') || 
+                     el.parentElement.querySelector('.error-message') ||
+                     el.classList.contains('error');
+          });
+          
+          if (redBorderedInputs.length > 0) {
+              summaryField = redBorderedInputs[0];
+              console.log('Input trouvé par recherche de bordure rouge:', summaryField);
+          }
+      }
+      
+      // Dernière tentative: l'input visible dans la capture d'écran
+      if (!summaryField) {
+          summaryField = document.querySelector('input[placeholder="Type ? for help"]');
+          console.log('Dernier recours, input par placeholder:', summaryField);
+      }
+  }
+  
+  // Si aucun champ n'est trouvé, abandonner
+  if (!summaryField) {
+      console.error('Impossible de trouver le champ résumé avec toutes les méthodes');
+      return null;
+  }
+  
+  console.log('Champ résumé trouvé avec succès:', summaryField);
+  
+  // Créer un conteneur pour le tooltip qui sera positionné en fixed
+  const tooltipContainer = document.createElement('div');
+  tooltipContainer.className = 'jira-tooltip-container';
+  tooltipContainer.style.cssText = `
+      position: fixed;
+      z-index: 99999;
+      pointer-events: none; /* Pour permettre l'interaction avec les éléments en-dessous */
+  `;
+  document.body.appendChild(tooltipContainer);
+  
+  // Créer l'icône du tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = 'jira-tooltip-icon';
+  tooltip.style.cssText = `
+      position: absolute; /* Relatif au conteneur fixed */
+      width: 28px;
+      height: 28px;
+      background-color: #7B61FF;
+      border-radius: 50%;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 16px;
+      font-family: Arial, sans-serif;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      pointer-events: auto; /* Activer les interactions */
+      opacity: 1 !important;
+      visibility: visible !important;
+  `;
+  tooltip.textContent = 'i';
+  tooltipContainer.appendChild(tooltip);
+  
+  // Contenu du tooltip
+  const tooltipContent = document.createElement('div');
+  tooltipContent.className = 'tooltip-content';
+  tooltipContent.style.cssText = `
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      width: 250px;
+      z-index: 100000;
+      display: none;
+      text-align: center;
+      font-weight: normal;
+      color: #333;
+      line-height: 1.4;
+      pointer-events: auto;
+  `;
+  
+  // Contenu HTML du tooltip
+  tooltipContent.innerHTML = `
+      <div style="position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 20px; height: 20px; background: white; box-shadow: 3px 3px 5px rgba(0,0,0,0.1);"></div>
+      <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: center;">
+          <span style="width: 20px; height: 20px; border-radius: 50%; background-color: #7B61FF; color: white; text-align: center; line-height: 20px; font-size: 12px; margin-right: 8px; display: inline-block;">i</span>
+          <span style="font-weight: bold; font-size: 16px; color: #333;">Helpful Tip</span>
+      </div>
+      <div style="text-align: left; margin-top: 10px;">
+     <p> Required format: [IPNext/IPx] [Activity] : Description </p><br>
 
+          <p style="margin: 0;">Options IP: For  ... </p>
+          <p style="margin: 0;">Options Activity: For ... </p> <br>
+Type <strong>?</strong> to access autocomplete suggestions.
+
+      </div>
+  `;
+  
+  // Ajouter le contenu à l'icône
+  tooltip.appendChild(tooltipContent);
+  
+  // Gérer les événements de survol
+  tooltip.addEventListener('mouseenter', () => {
+      tooltipContent.style.display = 'block';
+  });
+  
+  tooltip.addEventListener('mouseleave', () => {
+      tooltipContent.style.display = 'none';
+  });
+  
+  // Fonction améliorée pour mettre à jour la position
+  function updatePosition() {
+      if (!summaryField || !document.body.contains(summaryField)) {
+          console.log('Le champ summary n\'est plus dans le DOM, recherche à nouveau');
+          
+          // Rechercher à nouveau le champ
+          summaryField = document.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field, input[aria-label="Résumé"], input[placeholder*="Type ? for help"]');
+          
+          if (!summaryField) {
+              tooltipContainer.style.display = 'none';
+              console.log('Impossible de retrouver le champ, tooltip masqué');
+              return;
+          }
+      }
+      
+      // Vérifier si le champ est visible
+      const isVisible = (element) => {
+          const style = window.getComputedStyle(element);
+          return style.display !== 'none' && 
+                 style.visibility !== 'hidden' && 
+                 element.offsetWidth > 0 && 
+                 element.offsetHeight > 0;
+      };
+      
+      if (!isVisible(summaryField) || !isDialogOpen()) {
+          tooltipContainer.style.display = 'none';
+          console.log('Tooltip caché: champ non visible ou dialogue fermé');
+          return;
+      }
+      
+      const fieldRect = summaryField.getBoundingClientRect();
+      
+      // Vérifier si le rectangle a une taille valide
+      if (fieldRect.width === 0 || fieldRect.height === 0) {
+          tooltipContainer.style.display = 'none';
+          console.log('Tooltip caché: dimensions du champ nulles');
+          return;
+      }
+      
+      // Positionner le conteneur du tooltip
+      tooltipContainer.style.display = 'block';
+      tooltipContainer.style.top = '0';
+      tooltipContainer.style.left = '0';
+      
+      // Positionner l'icône à droite du champ
+      tooltip.style.top = (fieldRect.top + (fieldRect.height - 28) / 2) + "px";
+      tooltip.style.left = (fieldRect.right + 10) + "px"; // 10px à droite du champ
+      
+      console.log('Tooltip positionné à:', {
+          top: tooltip.style.top,
+          left: tooltip.style.left,
+          fieldRect: fieldRect
+      });
+  }
+  
+  // Fonction pour vérifier si la boîte de dialogue est ouverte
+  function isDialogOpen() {
+      // En supposant que la page de création de ticket est toujours ouverte
+      return true;
+      
+      // Si besoin de vérifier plus précisément:
+      /*
+      const dialogSelectors = [
+          'div[role="dialog"]',
+          '.modal-dialog',
+          '.jira-dialog',
+          '.aui-dialog2',
+          '#create-issue-dialog',
+          '#edit-issue-dialog',
+          '.issue-create-dialog',
+          '.issue-edit-dialog'
+      ];
+      
+      for (const selector of dialogSelectors) {
+          const dialog = document.querySelector(selector);
+          if (dialog && dialog.offsetParent !== null) {
+              return true;
+          }
+      }
+      
+      return false;
+      */
+  }
+  
+  // Stocker la référence pour pouvoir la supprimer plus tard
+  tooltipContainer._updatePosition = updatePosition;
+  
+  // Optimiser les écouteurs d'événements
+  window.addEventListener('scroll', updatePosition, { passive: true });
+  window.addEventListener('resize', updatePosition, { passive: true });
+  document.addEventListener('scroll', updatePosition, { passive: true, capture: true });
+  
+  // Gérer le scroll dans les éléments parents
+  let parent = summaryField.parentElement;
+  while (parent) {
+      parent.addEventListener('scroll', updatePosition, { passive: true });
+      parent = parent.parentElement;
+  }
+  
+  // Gestion des inputs et focus pour mettre à jour la position
+  summaryField.addEventListener('input', updatePosition, { passive: true });
+  summaryField.addEventListener('focus', updatePosition, { passive: true });
+  
+  // Observer les changements dans le DOM
+  const observer = new MutationObserver((mutations) => {
+      updatePosition();
+  });
+  
+  // Observer le document entier pour les changements de visibilité
+  observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'aria-hidden']
+  });
+  
+  // Exécuter immédiatement pour positionner correctement
+  updatePosition();
+  
+  // Configurer un intervalle pour vérifier régulièrement la position
+  const positionInterval = setInterval(updatePosition, 100);
+  tooltipContainer._positionInterval = positionInterval;
+  
+  // Ajouter un clic sur le document pour vérifier si le tooltip est correctement affiché
+  document.addEventListener('click', () => {
+      // Forcer une mise à jour après un court délai
+      setTimeout(updatePosition, 50);
+  }, { passive: true });
+  
+  return tooltipContainer;
+}
 // Intégrer toutes les fonctionnalités au démarrage avec une seule fonction initializer
 function initializeAllFeatures() {
-    console.log("Initializing all features...");
-    
-    // Créer la bulle d'erreur et s'assurer qu'elle est visible
-    errorBubble = errorBubble || createErrorBubble();
-    errorBubble.style.visibility = "visible"; // Forcer la visibilité
-    
-    // Rechercher le champ summary
-    const summaryField = document.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field');
-    
-    if (summaryField) {
-        // Positionner la bulle près du champ dès l'initialisation
-        positionBubbleNearInput(summaryField);
-        
-        // Initialiser l'autocomplétion
-        initSummaryAutocomplete();
-        
-        // Vérifier le contenu initial
-        if (summaryField.value.trim() !== '') {
-            checkInput(summaryField);
-        }
-    }
-    
-    // Ajouter le tooltip
-    addAdaptiveTooltip();
-    
-    // Créer la bulle de chat
-    if (!chatBubble) {
-        chatBubble = createBubbleChat();
-    }
-    
-    // Mettre à jour l'état initial
-    updateErrorBubble(errorCount);
-    
-    // Installer un seul MutationObserver optimisé au lieu de plusieurs
-    if (!domObserver) {
-        domObserver = new MutationObserver((mutations) => {
-            let needsUpdate = false;
-            let needsSummaryInit = false;
-            let needsTooltip = false;
-            
-            mutations.forEach(mutation => {
-                // Vérifier les ajouts de noeuds
-                if (mutation.addedNodes.length > 0) {
-                    for (let i = 0; i < mutation.addedNodes.length; i++) {
-                        const node = mutation.addedNodes[i];
-                        if (node.nodeType !== Node.ELEMENT_NODE) continue;
-                        
-                        // Vérifier si c'est le bouton de création
-                        if (node.matches('button[data-testid="issue-create.common.ui.footer.create-button"]') ||
-                            node.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]')) {
-                            needsUpdate = true;
-                        }
-                        
-                        // Vérifier si c'est un champ summary
-                        if (node.matches('input#summary, textarea#summary, input[name="summary"], .summary-field') ||
-                            node.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field')) {
-                            needsSummaryInit = true;
-                            needsTooltip = true;
-                        }
-                    }
-                }
-                
-                // Vérifier les modifications de styles ou classes pour le champ summary
-                if (mutation.type === 'attributes' && 
-                    (mutation.attributeName === 'style' || mutation.attributeName === 'class') &&
-                    (mutation.target.matches('input#summary, textarea#summary') || 
-                     mutation.target.closest('input#summary, textarea#summary'))) {
-                    needsTooltip = true;
-                }
-            });
-            
-            // Appliquer les mises à jour nécessaires
-            if (needsUpdate) {
-                updateCreateButton();
-            }
-            
-            if (needsSummaryInit) {
-                initSummaryAutocomplete();
-            }
-            
-            if (needsTooltip) {
-                addAdaptiveTooltip();
-            }
-        });
-        
-        // Observer l'ensemble du document avec des options optimisées
-        domObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['style', 'class'],
-            characterData: false // Ne pas surveiller les changements de texte
-        });
-    }
-    
-    // Installer les écouteurs d'événements globaux optimisés
-    document.addEventListener("input", (e) => {
-        const input = e.target;
-        
-        // Ignorer les champs de l'extension
-        if (isExtensionField(input)) {
-            return;
-        }
+  console.log("Initializing all features...");
+  
+  // Créer la bulle d'erreur et s'assurer qu'elle est visible
+  errorBubble = errorBubble || createErrorBubble();
+  errorBubble.style.visibility = "visible"; // Forcer la visibilité
+  
+  // Rechercher le champ summary
+  const summaryField = document.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field');
+  
+  if (summaryField) {
+      // Positionner la bulle près du champ dès l'initialisation
+      positionBubbleNearInput(summaryField);
+      
+      // Initialiser l'autocomplétion
+      initSummaryAutocomplete();
+      
+      // Vérifier le contenu initial
+      if (summaryField.value.trim() !== '') {
+          checkInput(summaryField);
+      }
+  }
+  
+  // Ajouter le tooltip
+  addAdaptiveTooltip();
+  
+  // Créer la bulle de chat
+  if (!chatBubble) {
+      chatBubble = createBubbleChat();
+  }
+  
+  // Mettre à jour l'état initial
+  updateErrorBubble(errorCount);
+  
+  // Installer un seul MutationObserver optimisé au lieu de plusieurs
+  if (!domObserver) {
+      domObserver = new MutationObserver((mutations) => {
+          let needsUpdate = false;
+          let needsSummaryInit = false;
+          let needsTooltip = false;
+          
+          mutations.forEach(mutation => {
+              // Vérifier les ajouts de noeuds
+              if (mutation.addedNodes.length > 0) {
+                  for (let i = 0; i < mutation.addedNodes.length; i++) {
+                      const node = mutation.addedNodes[i];
+                      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                      
+                      // Vérifier si c'est le bouton de création
+                      if (node.matches('button[data-testid="issue-create.common.ui.footer.create-button"]') ||
+                          node.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]')) {
+                          needsUpdate = true;
+                      }
+                      
+                      // Vérifier si c'est un champ summary
+                      if (node.matches('input#summary, textarea#summary, input[name="summary"], .summary-field') ||
+                          node.querySelector('input#summary, textarea#summary, input[name="summary"], .summary-field')) {
+                          needsSummaryInit = true;
+                          needsTooltip = true;
+                      }
+                  }
+              }
+              
+              // Vérifier les modifications de styles ou classes pour le champ summary
+              if (mutation.type === 'attributes' && 
+                  (mutation.attributeName === 'style' || mutation.attributeName === 'class') &&
+                  (mutation.target.matches('input#summary, textarea#summary') || 
+                   mutation.target.closest('input#summary, textarea#summary'))) {
+                  needsTooltip = true;
+              }
+              
+              // Vérifier les modifications des dialogues
+              if ((mutation.type === 'attributes' && 
+                   (mutation.attributeName === 'style' || mutation.attributeName === 'class' || mutation.attributeName === 'aria-hidden')) ||
+                  mutation.type === 'childList') {
+                  
+                  const isDialogRelated = 
+                      mutation.target.matches('div[role="dialog"], .modal-dialog, .jira-dialog, .aui-dialog2') || 
+                      mutation.target.closest('div[role="dialog"], .modal-dialog, .jira-dialog, .aui-dialog2');
+                  
+                  if (isDialogRelated) {
+                      // Vérifier si la boîte de dialogue est en train d'être fermée
+                      const tooltip = document.querySelector('.jira-tooltip-icon');
+                      if (tooltip && tooltip._updatePosition) {
+                          tooltip._updatePosition();
+                      }
+                  }
+              }
+          });
+          
+          // Appliquer les mises à jour nécessaires
+          if (needsUpdate) {
+              updateCreateButton();
+          }
+          
+          if (needsSummaryInit) {
+              initSummaryAutocomplete();
+          }
+          
+          if (needsTooltip) {
+              addAdaptiveTooltip();
+          }
+      });
+      
+      // Observer l'ensemble du document avec des options optimisées
+      domObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class', 'aria-hidden'],
+          characterData: false // Ne pas surveiller les changements de texte
+      });
+  }
+  
+  // Écouter les clics sur le document pour détecter les fermetures potentielles
+  document.addEventListener('click', (e) => {
+      // Vérifier si c'est un clic en dehors de la boîte de dialogue ou sur un bouton de fermeture
+      if (e.target.matches('.cancel, .close, button[data-testid*="cancel"], button[data-testid*="close"]') ||
+          e.target.closest('.cancel, .close, button[data-testid*="cancel"], button[data-testid*="close"]')) {
+          // Mettre à jour le tooltip après un court délai
+          setTimeout(() => {
+              const tooltip = document.querySelector('.jira-tooltip-icon');
+              if (tooltip && tooltip._updatePosition) {
+                  tooltip._updatePosition();
+              }
+          }, 100);
+      }
+  }, { passive: true });
+  
+  // Installer les écouteurs d'événements globaux optimisés
+  document.addEventListener("input", (e) => {
+      const input = e.target;
+      
+      // Ignorer les champs de l'extension
+      if (isExtensionField(input)) {
+          return;
+      }
 
-        // Vérifier si c'est le champ summary
-        const isSummary = input.id === "summary" || 
-                          input.name === "summary" || 
-                          input.classList.contains("summary-field");
-        
-        // Ne traiter que le champ summary pour éviter les calculs inutiles
-        if (isSummary) {
-            clearTimeout(timeoutId);
-            // Utiliser une fonction liée pour éviter les créations répétées
-            timeoutId = setTimeout(() => checkInput(input), 500);
-        }
-    }, { passive: true }); // Utiliser passive pour améliorer les performances
-    
-    // Configurer l'écouteur d'extension (une seule fois)
-    setupExtensionListener();
-    
-    return "All features initialized";
+      // Vérifier si c'est le champ summary
+      const isSummary = input.id === "summary" || 
+                        input.name === "summary" || 
+                        input.classList.contains("summary-field");
+      
+      // Ne traiter que le champ summary pour éviter les calculs inutiles
+      if (isSummary) {
+          clearTimeout(timeoutId);
+          // Utiliser une fonction liée pour éviter les créations répétées
+          timeoutId = setTimeout(() => checkInput(input), 500);
+      }
+  }, { passive: true }); // Utiliser passive pour améliorer les performances
+  
+  // Configurer l'écouteur d'extension (une seule fois)
+  setupExtensionListener();
+  
+  return "All features initialized";
 }
-
 // Valider les champs spécifiques - optimisé
 function checkVersion(event) {
     const selectedValue = event.target.value;
