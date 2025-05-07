@@ -534,7 +534,7 @@ function checkText(input) {
 // Vérification des champs optimisée
 function checkInput(input) {
     // Ignorer les champs appartenant à l'extension
-    if (!input || isExtensionField(input)) {
+    if (isExtensionField(input)) {
         return;
     }
     
@@ -548,14 +548,104 @@ function checkInput(input) {
         const text = input.value.trim();
 
         if (text === "") {
-            // Si le champ est vide, revenir à l'état initial
+            // Si le champ est vide, revenir à l'état initial (icône par défaut)
+            errorCount = 0;
             updateErrorBubble(0);
         } else {
+            // Vérifier immédiatement le texte
             checkText(input);
         }
         
-        // S'assurer que la bulle d'erreur est positionnée correctement
+        // S'assurer que la bulle d'erreur est visible et bien positionnée
         positionBubbleNearInput(input);
+    }
+}
+
+// Fonction pour attacher l'événement mouseleave à un champ
+function attachMouseLeaveHandler(field) {
+    if (!field) return;
+    
+    // Supprimer le gestionnaire précédent pour éviter les doublons
+    if (field._mouseleaveHandler) {
+        field.removeEventListener('mouseleave', field._mouseleaveHandler);
+    }
+    
+    // Gestionnaire pour le mouseleave
+    const mouseleaveHandler = function(e) {
+        // Ne vérifier que si la souris quitte complètement le champ
+        if (e.relatedTarget !== this && !this.contains(e.relatedTarget)) {
+            console.log("Mouse left the summary field, checking content");
+            checkInput(this);
+        }
+    };
+    
+    // Stocker la référence pour pouvoir la supprimer plus tard
+    field._mouseleaveHandler = mouseleaveHandler;
+    
+    // Attacher le gestionnaire
+    field.addEventListener('mouseleave', mouseleaveHandler);
+    
+    // Ajouter aussi un gestionnaire pour blur (perte de focus)
+    if (field._blurHandler) {
+        field.removeEventListener('blur', field._blurHandler);
+    }
+    
+    const blurHandler = function() {
+        console.log("Summary field lost focus, checking content");
+        checkInput(this);
+    };
+    
+    field._blurHandler = blurHandler;
+    field.addEventListener('blur', blurHandler);
+}
+
+// Modifier la fonction d'initialisation pour attacher ces événements
+function initSummaryAutocomplete() {
+    // Code existant...
+    
+    // Utiliser un sélecteur optimisé
+    const summarySelector = 'input#summary, input[name="summary"], textarea#summary, .summary-field';
+    const summaryField = document.querySelector(summarySelector);
+    
+    if (!summaryField) {
+        console.log("Champ summary non trouvé - réessayer plus tard");
+        return; // Sortir si le champ n'est pas trouvé
+    }
+    
+    // Éviter la réinitialisation si déjà configuré
+    if (summaryField.dataset.autocompleteInitialized === "true") {
+        console.log("Autocomplétion déjà initialisée pour ce champ");
+        return;
+    }
+    
+    console.log("Initialisation de l'autocomplétion pour le champ:", summaryField);
+    
+    // Marquer comme initialisé
+    summaryField.dataset.autocompleteInitialized = "true";
+    
+    // Définir le placeholder
+    summaryField.placeholder = "Type ? for help ";
+    
+    // Supprimer les écouteurs existants pour éviter les doublons
+    if (summaryField._keydownHandler) {
+        summaryField.removeEventListener('keydown', summaryField._keydownHandler);
+    }
+    
+    // Stocker la référence pour pouvoir la supprimer plus tard
+    summaryField._keydownHandler = handleKeyDown;
+    
+    // Ajouter l'écouteur optimisé pour keydown
+    summaryField.addEventListener('keydown', handleKeyDown);
+    
+    // Ajouter l'écouteur pour le filtrage progressif
+    attachFilteringHandler(summaryField);
+    
+    // Ajouter les écouteurs pour détecter quand la souris quitte le champ
+    attachMouseLeaveHandler(summaryField);
+    
+    // Valider la valeur initiale s'il y en a une
+    if (summaryField.value.trim() !== '') {
+        checkInput(summaryField);
     }
 }
 
@@ -664,14 +754,6 @@ function createBubbleChat() {
         zIndex: "9999"
     });
 
-    // Iframe pour le chat
-    const iframe = document.createElement("iframe");
-    iframe.src = "http://localhost:8501"; // URL pour le serveur local
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    iframe.style.border = "none";
-
-    chatContainer.appendChild(iframe);
     document.body.appendChild(chatContainer);
 
     // Toggle du chat en cliquant sur la bulle
@@ -679,6 +761,37 @@ function createBubbleChat() {
     chatBubble.addEventListener("click", () => {
         chatVisible = !chatVisible;
         chatContainer.style.display = chatVisible ? "block" : "none";
+        
+        // Si on affiche le chat, vérifier si Streamlit est déjà en cours d'exécution
+        if (chatVisible) {
+            // Afficher l'écran de chargement pendant la vérification
+            chatContainer.innerHTML = `
+                <div style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white;">
+                    <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #7B61FF; border-radius: 50%; animation: spin 2s linear infinite;"></div>
+                    <p style="margin-top: 20px; color: #333;">Connexion au chatbot...</p>
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    </style>
+                </div>
+            `;
+            
+            // Tenter de démarrer directement le script batch
+            const batchWindow = window.open('file:///C:/Users/NITRO/Documents/pfe/extension/v3/demarrer_chatbot.bat', '_blank');
+            setTimeout(() => {
+                if (batchWindow) batchWindow.close();
+            }, 500);
+            
+            // Vérifier après un court délai si le serveur est disponible
+            setTimeout(() => {
+                checkServerAndLoad();
+            }, 2000);
+        } else {
+            // Si on ferme le chat, vider le conteneur
+            chatContainer.innerHTML = '';
+        }
         
         // Effet visuel pour montrer l'état actif
         if (chatVisible) {
@@ -689,6 +802,58 @@ function createBubbleChat() {
             chatBubble.style.transform = "scale(1)";
         }
     });
+
+    // Fonction pour vérifier le serveur et charger l'iframe
+    function checkServerAndLoad() {
+        let attempts = 0;
+        const maxAttempts = 15;
+        
+        const checkInterval = setInterval(() => {
+            fetch('http://localhost:8501', { mode: 'no-cors' })
+                .then(() => {
+                    // Le serveur est disponible
+                    clearInterval(checkInterval);
+                    
+                    // Charger l'iframe
+                    const iframe = document.createElement("iframe");
+                    iframe.src = "http://localhost:8501";
+                    iframe.style.width = "100%";
+                    iframe.style.height = "100%";
+                    iframe.style.border = "none";
+                    chatContainer.innerHTML = '';
+                    chatContainer.appendChild(iframe);
+                })
+                .catch(() => {
+                    attempts++;
+                    if (attempts >= maxAttempts) {
+                        // Le serveur n'est toujours pas disponible après 15 tentatives
+                        clearInterval(checkInterval);
+                        
+                        chatContainer.innerHTML = `
+                            <div style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; padding: 20px; text-align: center;">
+                                <p style="color: #ff4444; margin-bottom: 15px;">Le chatbot n'a pas pu être démarré automatiquement.</p>
+                                <button id="openBatchButton" style="padding: 8px 15px; background: #7B61FF; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 12px;">
+                                    Ouvrir demarrer_chatbot.bat
+                                </button>
+                                <button id="retryButton" style="padding: 8px 15px; background: #5a5a5a; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 12px;">
+                                    Réessayer
+                                </button>
+                                <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                                    Après avoir lancé le chatbot, cliquez sur "Réessayer".
+                                </p>
+                            </div>
+                        `;
+                        
+                        // Ajouter les écouteurs d'événements pour les boutons
+                        document.getElementById("openBatchButton").addEventListener("click", () => {
+                            window.open('file:///C:/Users/NITRO/Documents/pfe/extension/v3/demarrer_chatbot.bat', '_blank');
+                        });
+                        
+                        document.getElementById("retryButton").addEventListener("click", checkServerAndLoad);
+                    }
+                });
+        }, 1000);
+    }
 
     // Vérifier si la bulle était précédemment cachée
     if (localStorage.getItem("chatBubbleHidden") === "true") {
@@ -867,27 +1032,19 @@ function handleActivitySection(field, text, cursorPos, segments) {
         field.dataset.mode = "new-activity";
         field.dataset.currentSegment = "1"; // Marquer le segment actuel comme Activity
         
-        // Ajouter un espace et un crochet après IP si nécessaire
+        // Ajouter directement un crochet après IP sans espace
         const afterIP = text.substring(ipSegment.end + 1);
         
-        // Vérifier s'il y a déjà un espace après IP
-        if (afterIP.startsWith(' ')) {
-            // S'il y a un espace mais pas de crochet, ajouter le crochet
-            if (!afterIP.trim().startsWith('[')) {
-                field.value = text.substring(0, ipSegment.end + 1) + ' [';
-                field.dataset.filterPos = field.value.length - 1;
-                setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
-            } else {
-                // Le crochet existe déjà, placer le curseur après
-                const bracketPos = text.indexOf('[', ipSegment.end);
-                field.dataset.filterPos = bracketPos + 1;
-                setTimeout(() => field.setSelectionRange(bracketPos + 1, bracketPos + 1), 0);
-            }
+        // Vérifier s'il y a déjà un crochet après IP
+        if (afterIP.startsWith('[')) {
+            // Le crochet existe déjà, placer le curseur après
+            field.dataset.filterPos = ipSegment.end + 2;
+            setTimeout(() => field.setSelectionRange(ipSegment.end + 2, ipSegment.end + 2), 0);
         } else {
-            // Pas d'espace après IP, ajouter l'espace et le crochet
-            field.value = text.substring(0, ipSegment.end + 1) + ' [';
-            field.dataset.filterPos = field.value.length - 1;
-            setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
+            // Pas de crochet après IP, ajouter le crochet sans espace
+            field.value = text.substring(0, ipSegment.end + 1) + '[';
+            field.dataset.filterPos = ipSegment.end + 2;
+            setTimeout(() => field.setSelectionRange(ipSegment.end + 2, ipSegment.end + 2), 0);
         }
     } else {
         // Pas de segment IP, commencer par IP
@@ -898,6 +1055,55 @@ function handleActivitySection(field, text, cursorPos, segments) {
     // Afficher les options d'activité
     showOptionsMenu(field, validActivities, 1);
 }
+
+// Modifier la fonction moveToNextSegment pour supprimer les espaces entre segments
+function moveToNextSegment(inputField, text, position) {
+    let newText = text;
+    
+    switch (currentSegment) {
+        case 0: // Après ID, ajouter [IPNext] sans espace
+            newText = text + '[IPNext]';
+            inputField.value = newText;
+            inputField.setSelectionRange(newText.length, newText.length);
+            currentSegment = 1;
+            
+            // Ajouter automatiquement le segment suivant avec le crochet ouvrant sans espace
+            setTimeout(() => {
+                newText += '[';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                currentSegment = 2;
+                showActivityMenu(inputField, newText.length);
+            }, 100);
+            break;
+            
+        case 1: // Après IPNext, ajouter [ sans espace
+            newText = text + '[';
+            inputField.value = newText;
+            inputField.setSelectionRange(newText.length, newText.length);
+            currentSegment = 2;
+            showActivityMenu(inputField, newText.length);
+            break;
+            
+        case 2: // Après Activity, ajouter : sans espace
+            newText = text + ':';
+            inputField.value = newText;
+            inputField.setSelectionRange(newText.length, newText.length);
+            currentSegment = 3;
+            break;
+            
+        case 3: // Après les deux-points, ajouter espace pour la description
+            newText = text + ' ';
+            inputField.value = newText;
+            inputField.setSelectionRange(newText.length, newText.length);
+            currentSegment = 4;
+            break;
+    }
+    
+    // Déclencher un événement input pour vérifier la validité
+    inputField.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 
 // Gestion du segment Description - optimisée
 function handleDescriptionSection(field, text, cursorPos, segments) {
@@ -1125,110 +1331,111 @@ function showOptionsMenu(field, options, segmentType, filterText = '') {
   }, 10);
 }
 function selectOption(field, option, segmentType) {
-  const currentValue = field.value;
-  const cursorPos = field.selectionStart;
-  
-  console.log(`Sélection d'option: ${option} pour le segment ${segmentType}`);
-  
-  // Traiter selon le mode et le segment
-  if (segmentType == 0) { // IP - Utiliser == au lieu de === pour comparaison plus souple
-      // Déterminer le mode
-      const mode = field.dataset.mode || "new-ip";
-      console.log(`Mode IP: ${mode}`);
-      
-      if (mode === "replace-ip") {
-          // Remplacer l'IP existant
-          const afterIp = field.dataset.afterIp || "";
-          field.value = `[${option}]${afterIp}`;
-          
-          // Positionner le curseur après le segment IP
-          const newCursorPos = option.length + 2;
-          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
-          
-          // Nettoyer les données temporaires
-          delete field.dataset.mode;
-          delete field.dataset.afterIp;
-      } else {
-          // Nouveau IP
-          if (currentValue.startsWith('[')) {
-              // Compléter le crochet ouvert
-              field.value = `[${option}]${currentValue.substring(1)}`;
-          } else {
-              // Ajouter un nouveau segment IP
-              field.value = `[${option}]${currentValue}`;
-          }
-          
-          // Positionner le curseur après le segment IP
-          const newCursorPos = option.length + 2;
-          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
-      }
-  } else if (segmentType == 1) { // Activity - Utiliser == au lieu de === pour comparaison plus souple
-      // Déterminer le mode
-      const mode = field.dataset.mode || "new-activity";
-      console.log(`Mode Activity: ${mode}`);
-      
-      if (mode === "replace-activity") {
-          // Remplacer l'activité existante
-          const beforeActivity = field.dataset.beforeActivity || "";
-          const afterActivity = field.dataset.afterActivity || "";
-          field.value = `${beforeActivity}[${option}]${afterActivity}`;
-          
-          // Positionner le curseur après le segment Activity
-          const newCursorPos = beforeActivity.length + option.length + 2;
-          setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
-          
-          // Nettoyer les données temporaires
-          delete field.dataset.mode;
-          delete field.dataset.beforeActivity;
-          delete field.dataset.afterActivity;
-      } else {
-          // Nouvelle activité
-          const ipEnd = currentValue.indexOf(']');
-          
-          if (ipEnd !== -1) {
-              // Déterminer si un crochet ouvrant pour l'activité existe déjà
-              const activityStart = currentValue.indexOf('[', ipEnd);
-              
-              if (activityStart !== -1 && activityStart < cursorPos) {
-                  // Compléter le crochet ouvert existant
-                  field.value = currentValue.substring(0, activityStart + 1) + 
-                              option + ']' + 
-                              currentValue.substring(activityStart + 1);
-              } else {
-                  // Ajouter un espace et un nouveau segment Activity après IP
-                  field.value = currentValue.substring(0, ipEnd + 1) + 
-                              ` [${option}]` + 
-                              currentValue.substring(ipEnd + 1);
-              }
-              
-              // Positionner le curseur après le segment Activity
-              const newActivityEnd = field.value.indexOf(']', ipEnd + 1);
-              if (newActivityEnd !== -1) {
-                  setTimeout(() => field.setSelectionRange(newActivityEnd + 1, newActivityEnd + 1), 0);
-              }
-          } else {
-              // Pas de segment IP valide, recommencer avec IP
-              field.value = `[${validIPOptions[0]}] [${option}]`;
-              setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
-          }
-      }
-  } else {
-      console.log(`Type de segment non reconnu: ${segmentType}`);
+    const currentValue = field.value;
+    const cursorPos = field.selectionStart;
+    
+    console.log(`Sélection d'option: ${option} pour le segment ${segmentType}`);
+    
+    // Traiter selon le mode et le segment
+    if (segmentType == 0) { // IP 
+        // Déterminer le mode
+        const mode = field.dataset.mode || "new-ip";
+        console.log(`Mode IP: ${mode}`);
+        
+        if (mode === "replace-ip") {
+            // Remplacer l'IP existant
+            const afterIp = field.dataset.afterIp || "";
+            field.value = `[${option}]${afterIp}`;
+            
+            // Positionner le curseur après le segment IP
+            const newCursorPos = option.length + 2;
+            setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+            
+            // Nettoyer les données temporaires
+            delete field.dataset.mode;
+            delete field.dataset.afterIp;
+        } else {
+            // Nouveau IP
+            if (currentValue.startsWith('[')) {
+                // Compléter le crochet ouvert
+                field.value = `[${option}]${currentValue.substring(1)}`;
+            } else {
+                // Ajouter un nouveau segment IP
+                field.value = `[${option}]${currentValue}`;
+            }
+            
+            // Positionner le curseur après le segment IP
+            const newCursorPos = option.length + 2;
+            setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+        }
+    } else if (segmentType == 1) { // Activity
+        // Déterminer le mode
+        const mode = field.dataset.mode || "new-activity";
+        console.log(`Mode Activity: ${mode}`);
+        
+        if (mode === "replace-activity") {
+            // Remplacer l'activité existante
+            const beforeActivity = field.dataset.beforeActivity || "";
+            const afterActivity = field.dataset.afterActivity || "";
+            field.value = `${beforeActivity}[${option}]${afterActivity}`;
+            
+            // Positionner le curseur après le segment Activity
+            const newCursorPos = beforeActivity.length + option.length + 2;
+            setTimeout(() => field.setSelectionRange(newCursorPos, newCursorPos), 0);
+            
+            // Nettoyer les données temporaires
+            delete field.dataset.mode;
+            delete field.dataset.beforeActivity;
+            delete field.dataset.afterActivity;
+        } else {
+            // Nouvelle activité
+            const ipEnd = currentValue.indexOf(']');
+            
+            if (ipEnd !== -1) {
+                // Déterminer si un crochet ouvrant pour l'activité existe déjà
+                const activityStart = currentValue.indexOf('[', ipEnd);
+                
+                if (activityStart !== -1 && activityStart < cursorPos) {
+                    // Compléter le crochet ouvert existant
+                    field.value = currentValue.substring(0, activityStart + 1) + 
+                                option + ']' + 
+                                currentValue.substring(activityStart + 1);
+                } else {
+                    // Ajouter un nouveau segment Activity après IP sans espace
+                    field.value = currentValue.substring(0, ipEnd + 1) + 
+                                `[${option}]` + 
+                                currentValue.substring(ipEnd + 1);
+                }
+                
+                // Positionner le curseur après le segment Activity
+                const newActivityEnd = field.value.indexOf(']', ipEnd + 1);
+                if (newActivityEnd !== -1) {
+                    setTimeout(() => field.setSelectionRange(newActivityEnd + 1, newActivityEnd + 1), 0);
+                }
+            } else {
+                // Pas de segment IP valide, recommencer avec IP
+                field.value = `[${validIPOptions[0]}][${option}]`;
+                setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
+            }
+        }
+    } else {
+        console.log(`Type de segment non reconnu: ${segmentType}`);
+    }
+    
+    // Vérifier si on doit ajouter automatiquement un séparateur pour la description
+    const segments = parseTextSegments(field.value);
+    if (segments.length === 2 && !field.value.includes(':')) {
+        field.value += ':';
+        setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
+    }
+    
+    // Déclencher un événement input pour activer les validateurs
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    // Vérifier le texte pour détecter les erreurs
+    checkText(field);
   }
   
-  // Vérifier si on doit ajouter automatiquement un séparateur pour la description
-  const segments = parseTextSegments(field.value);
-  if (segments.length === 2 && !field.value.includes(':')) {
-      field.value += ' : ';
-      setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 0);
-  }
-  
-  // Déclencher un événement input pour activer les validateurs
-  field.dispatchEvent(new Event('input', { bubbles: true }));
-  
-  // Vérifier le texte pour détecter les erreurs
-  checkText(field);
-}
 
 
 function enhanceKeyboardNavigation() {
@@ -1272,87 +1479,89 @@ function enhanceKeyboardNavigation() {
 enhanceKeyboardNavigation();
 // Gestionnaire de clavier optimisé pour que ? fonctionne dans n'importe quel segment
 function handleKeyDown(e) {
-  // S'assurer que le champ est en focus
-  if (document.activeElement !== this) {
-      return;
-  }
-  
-  // Capturer la touche ? pour déclencher l'assistant dans n'importe quel segment
-  if (e.key === '?' || e.keyCode === 191) {
-      e.preventDefault();
-      
-      // Obtenir les informations sur le champ et la position du curseur
-      const text = this.value;
-      const cursorPos = this.selectionStart;
-      
-      // Analyser le texte pour identifier les segments
-      const segments = parseTextSegments(text);
-      
-      // Déterminer précisément le segment actuel en fonction de la position du curseur
-      const segmentIndex = getSegmentAtCursor(text, cursorPos);
-      
-      console.log("Position du curseur:", cursorPos, "Segment détecté:", segmentIndex);
-      
-      // Stocker le segment actuel et la position pour le filtrage
-      this.dataset.filterMode = "start";
-      this.dataset.filterPos = cursorPos.toString();
-      this.dataset.filterText = "";
-      this.dataset.currentSegment = segmentIndex.toString();
-      
-      // Traiter selon le segment détecté
-      switch(segmentIndex) {
-          case 0: // IP segment
-              // Si on est dans un segment IP existant, le remplacer
-              const ipSegment = segments.find(s => s.type === 'IP');
-              if (ipSegment && cursorPos >= ipSegment.start && cursorPos <= ipSegment.end) {
-                  // Préparer le champ pour remplacer le segment IP
-                  const beforeIP = text.substring(0, ipSegment.start);
-                  const afterIP = text.substring(ipSegment.end + 1);
-                  this.dataset.afterIp = afterIP;
-                  this.dataset.mode = "replace-ip";
-                  this.value = beforeIP + '[';
-                  this.dataset.filterPos = beforeIP.length + 1;
-                  setTimeout(() => this.setSelectionRange(beforeIP.length + 1, beforeIP.length + 1), 0);
-                  showOptionsMenu(this, validIPOptions, 0);
-              } else {
-                  // Sinon, traiter normalement le segment IP
-                  handleIPSection(this, text, cursorPos, segments);
-              }
-              break;
-              
-          case 1: // Activity segment
-              // Si on est dans un segment Activity existant, le remplacer
-              const activitySegment = segments.find(s => s.type === 'Activity');
-              if (activitySegment && cursorPos >= activitySegment.start && cursorPos <= activitySegment.end) {
-                  // Préparer le champ pour remplacer le segment Activity
-                  const beforeActivity = text.substring(0, activitySegment.start);
-                  const afterActivity = text.substring(activitySegment.end + 1);
-                  this.dataset.beforeActivity = beforeActivity;
-                  this.dataset.afterActivity = afterActivity;
-                  this.dataset.mode = "replace-activity";
-                  this.value = beforeActivity + '[';
-                  this.dataset.filterPos = beforeActivity.length + 1;
-                  setTimeout(() => this.setSelectionRange(beforeActivity.length + 1, beforeActivity.length + 1), 0);
-                  showOptionsMenu(this, validActivities, 1);
-              } else {
-                  // Sinon, traiter normalement le segment Activity
-                  handleActivitySection(this, text, cursorPos, segments);
-              }
-              break;
-              
-          case 2: // Description segment
-              // Pour la description, il n'y a pas d'autocomplétion, mais on s'assure
-              // que le format est correct
-              handleDescriptionSection(this, text, cursorPos, segments);
-              break;
-              
-          default:
-              // Si on ne peut pas déterminer le segment, essayer IP par défaut
-              handleIPSection(this, text, cursorPos, segments);
-      }
-  }
-  // Si on est en mode filtre, capturer les caractères pour filtrer les options
-  else if (this.dataset.filterMode === "start" || this.dataset.filterMode === "filtering") {
+    // S'assurer que le champ est en focus
+    if (document.activeElement !== this) {
+        return;
+    }
+    
+    // Capturer la touche ? pour déclencher l'assistant dans n'importe quel segment
+    if (e.key === '?' || e.keyCode === 191) {
+        e.preventDefault();
+        
+        // Obtenir les informations sur le champ et la position du curseur
+        const text = this.value;
+        const cursorPos = this.selectionStart;
+        
+        // Analyser le texte pour identifier les segments
+        const segments = parseTextSegments(text);
+        
+        // Déterminer précisément le segment actuel en fonction de la position du curseur
+        const segmentIndex = getSegmentAtCursor(text, cursorPos);
+        
+        console.log("Position du curseur:", cursorPos, "Segment détecté:", segmentIndex);
+        
+        // Stocker le segment actuel et la position pour le filtrage
+        this.dataset.filterMode = "start";
+        this.dataset.filterPos = cursorPos.toString();
+        this.dataset.filterText = "";
+        this.dataset.currentSegment = segmentIndex.toString();
+        
+        // Traiter selon le segment détecté
+        switch(segmentIndex) {
+            case 0: // IP segment
+                // Si on est dans un segment IP existant, le remplacer
+                const ipSegment = segments.find(s => s.type === 'IP');
+                if (ipSegment && cursorPos >= ipSegment.start && cursorPos <= ipSegment.end) {
+                    // Préparer le champ pour remplacer le segment IP
+                    const beforeIP = text.substring(0, ipSegment.start);
+                    const afterIP = text.substring(ipSegment.end + 1);
+                    this.dataset.afterIp = afterIP;
+                    this.dataset.mode = "replace-ip";
+                    this.value = beforeIP + '[';
+                    this.dataset.filterPos = beforeIP.length + 1;
+                    setTimeout(() => this.setSelectionRange(beforeIP.length + 1, beforeIP.length + 1), 0);
+                    showOptionsMenu(this, validIPOptions, 0);
+                } else {
+                    // Sinon, traiter normalement le segment IP
+                    handleIPSection(this, text, cursorPos, segments);
+                }
+                break;
+                
+            case 1: // Activity segment
+                // Si on est dans un segment Activity existant, le remplacer
+                const activitySegment = segments.find(s => s.type === 'Activity');
+                if (activitySegment && cursorPos >= activitySegment.start && cursorPos <= activitySegment.end) {
+                    // Préparer le champ pour remplacer le segment Activity
+                    const beforeActivity = text.substring(0, activitySegment.start);
+                    const afterActivity = text.substring(activitySegment.end + 1);
+                    this.dataset.beforeActivity = beforeActivity;
+                    this.dataset.afterActivity = afterActivity;
+                    this.dataset.mode = "replace-activity";
+                    this.value = beforeActivity + '[';
+                    this.dataset.filterPos = beforeActivity.length + 1;
+                    setTimeout(() => this.setSelectionRange(beforeActivity.length + 1, beforeActivity.length + 1), 0);
+                    showOptionsMenu(this, validActivities, 1);
+                } else {
+                    // Sinon, traiter normalement le segment Activity
+                    handleActivitySection(this, text, cursorPos, segments);
+                }
+                break;
+                
+            case 2: // Description segment
+                // Pour la description, il n'y a pas d'autocomplétion
+                handleDescriptionSection(this, text, cursorPos, segments);
+                break;
+                
+            default:
+                // Si on ne peut pas déterminer le segment, essayer IP par défaut
+                handleIPSection(this, text, cursorPos, segments);
+        }
+        
+        // Déclencher immédiatement le filtrage
+        this.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    // Le reste de la fonction reste inchangé
+    else if (this.dataset.filterMode === "start" || this.dataset.filterMode === "filtering") {
       // Mise à jour du mode
       this.dataset.filterMode = "filtering";
       
@@ -1430,41 +1639,72 @@ function handleKeyDown(e) {
 
 // Fonction pour attacher le gestionnaire de filtrage
 function attachFilteringHandler(field) {
-  // Supprimer le gestionnaire existant pour éviter les doublons
-  if (field._inputHandler) {
-      field.removeEventListener('input', field._inputHandler);
+    // Supprimer le gestionnaire existant pour éviter les doublons
+    if (field._inputHandler) {
+        field.removeEventListener('input', field._inputHandler);
+    }
+    
+    // Fonction de filtrage en temps réel améliorée
+    const inputHandler = function() {
+        // Ne filtrer que si on est en mode filtrage
+        if ((this.dataset.filterMode === "filtering" || this.dataset.filterMode === "start") && optionsMenu) {
+            // Mise à jour du mode
+            this.dataset.filterMode = "filtering";
+            
+            const currentPos = this.selectionStart;
+            const filterStartPos = parseInt(this.dataset.filterPos) || 0;
+            const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
+            
+            // Mise à jour du texte de filtre
+            if (currentPos >= filterStartPos) {
+                this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
+                console.log("Mise à jour du filtre:", this.dataset.filterText);
+            } else {
+                // Si le curseur a reculé, réinitialiser
+                this.dataset.filterText = "";
+                this.dataset.filterPos = currentPos.toString();
+            }
+            
+            // Appliquer le filtrage selon le segment actuel
+            const options = segmentIndex === 0 ? validIPOptions : validActivities;
+            showOptionsMenu(this, options, segmentIndex, this.dataset.filterText);
+        }
+    };
+    
+    // Stocker la référence pour pouvoir la supprimer plus tard
+    field._inputHandler = inputHandler;
+    
+    // Attacher le gestionnaire optimisé
+    field.addEventListener('input', inputHandler);
+    
+    // Ajouter aussi un gestionnaire spécifique pour la touche Backspace
+    const keydownHandler = function(e) {
+        if (e.key === 'Backspace' && (this.dataset.filterMode === "filtering" || this.dataset.filterMode === "start") && optionsMenu) {
+            // Déclencher le filtrage après un court délai pour permettre la mise à jour de la valeur
+            setTimeout(() => {
+                const currentPos = this.selectionStart;
+                const filterStartPos = parseInt(this.dataset.filterPos) || 0;
+                const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
+                
+                if (currentPos >= filterStartPos) {
+                    this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
+                } else {
+                    this.dataset.filterText = "";
+                    this.dataset.filterPos = currentPos.toString();
+                }
+                
+                const options = segmentIndex === 0 ? validIPOptions : validActivities;
+                showOptionsMenu(this, options, segmentIndex, this.dataset.filterText);
+            }, 0);
+        }
+    };
+    
+    // Stocker la référence pour pouvoir la supprimer plus tard
+    field._backspaceHandler = keydownHandler;
+    
+    // Attacher le gestionnaire
+    field.addEventListener('keydown', keydownHandler);
   }
-  
-  // Fonction de filtrage en temps réel améliorée
-  const inputHandler = function() {
-      // Ne filtrer que si on est en mode filtrage
-      if (this.dataset.filterMode === "filtering" && optionsMenu) {
-          const currentPos = this.selectionStart;
-          const filterStartPos = parseInt(this.dataset.filterPos) || 0;
-          const segmentIndex = parseInt(this.dataset.currentSegment) || 0;
-          
-          // Mise à jour du texte de filtre
-          if (currentPos >= filterStartPos) {
-              this.dataset.filterText = this.value.substring(filterStartPos, currentPos);
-              console.log("Mise à jour du filtre:", this.dataset.filterText);
-          } else {
-              // Si le curseur a reculé, réinitialiser
-              this.dataset.filterText = "";
-              this.dataset.filterPos = currentPos.toString();
-          }
-          
-          // Appliquer le filtrage selon le segment actuel
-          const options = segmentIndex === 0 ? validIPOptions : validActivities;
-          showOptionsMenu(this, options, segmentIndex, this.dataset.filterText);
-      }
-  };
-  
-  // Stocker la référence pour pouvoir la supprimer plus tard
-  field._inputHandler = inputHandler;
-  
-  // Attacher le gestionnaire optimisé
-  field.addEventListener('input', inputHandler);
-}
 
 
 // Fonction optimisée pour l'initialisation de l'autocomplétion
@@ -1947,31 +2187,55 @@ function initializeAllFeatures() {
   
   // Installer les écouteurs d'événements globaux optimisés
   document.addEventListener("input", (e) => {
-      const input = e.target;
-      
-      // Ignorer les champs de l'extension
-      if (isExtensionField(input)) {
-          return;
-      }
+    const input = e.target;
+    
+    // Ignorer les champs de l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
 
-      // Vérifier si c'est le champ summary
-      const isSummary = input.id === "summary" || 
-                        input.name === "summary" || 
-                        input.classList.contains("summary-field");
-      
-      // Ne traiter que le champ summary pour éviter les calculs inutiles
-      if (isSummary) {
-          clearTimeout(timeoutId);
-          // Utiliser une fonction liée pour éviter les créations répétées
-          timeoutId = setTimeout(() => checkInput(input), 500);
-      }
-  }, { passive: true }); // Utiliser passive pour améliorer les performances
-  
-  // Configurer l'écouteur d'extension (une seule fois)
-  setupExtensionListener();
-  
-  return "All features initialized";
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // Pour les champs de saisie standard et le champ summary
+    if (input.matches("textarea, input[type='text']") || isSummary) {
+        // On ne vérifie pas immédiatement à chaque saisie pour ne pas perturber l'utilisateur
+        // On conserve le délai de 500ms pour l'événement input
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500);
+    }
+});
+
+// Ajouter un observateur du DOM pour attacher les gestionnaires aux nouveaux champs summary
+function setupSummaryFieldObserver() {
+    // Observer les changements dans le DOM
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Vérifier si un champ summary a été ajouté
+                        const summaryField = node.querySelector('#summary, [name="summary"], .summary-field');
+                        if (summaryField) {
+                            // Ajouter les événements au nouveau champ
+                            attachMouseLeaveHandler(summaryField);
+                            initSummaryAutocomplete();
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    });
+    
+    // Observer tout le document pour détecter les nouveaux champs summary
+    observer.observe(document.body, { childList: true, subtree: true });
 }
+
+// Exécuter une fois pour configurer l'observateur
+setupSummaryFieldObserver();}
 // Valider les champs spécifiques - optimisé
 function checkVersion(event) {
     const selectedValue = event.target.value;

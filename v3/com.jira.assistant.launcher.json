@@ -1,0 +1,9 @@
+{
+    "name": "com.jira.assistant.launcher",
+    "description": "Lanceur natif pour JIRA Assistant",
+    "path": "extension\\v3\\native_host.bat",
+    "type": "stdio",
+    "allowed_origins": [
+      "chrome-extension://gippjfenbcdimppphhgnglmaalooiege/"
+    ]
+  }

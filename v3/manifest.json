@@ -9,16 +9,16 @@
     "scripting",
     "tabs",
     "activeTab",
-    "background"
+    "background",
+    "nativeMessaging",
+     "management"
   ],
   "host_permissions": [
     "https://*.atlassian.net/*",
     "https://*.jira.com/*",
     "https://jira.cc.bmwgroup.net/*",
     "https://votre-chatbot.streamlit.app/*",
-        "http://localhost:8501/*",
-    "http://localhost:8000/*"
-  ],
+        "http://localhost:8501/*"  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -45,7 +45,7 @@
     }
   ],
   "web_accessible_resources": [{
-    "resources": ["icon.png", "chat.png"],
+    "resources": ["icon.png", "chat.png","demarrer_chatbot.bat"],
     "matches": ["https://*.atlassian.net/*", "https://*.jira.com/*",     "https://jira.cc.bmwgroup.net/*"  ]
   }]
 }

@@ -475,6 +475,7 @@ function checkInput(input) {
 }
 
 // Modification de l'écoute des événements pour se concentrer sur le champ summary
+// Remplacer le code actuel avec des délais par une vérification immédiate
 document.addEventListener("input", (e) => {
     const input = e.target;
     
@@ -488,12 +489,56 @@ document.addEventListener("input", (e) => {
                       input.name === "summary" || 
                       input.classList.contains("summary-field");
     
-    // Ne traiter que le champ summary
+    // Ne traiter que le champ summary et vérifier immédiatement
     if (isSummary) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => checkInput(input), 500);
+        // Supprimer le délai et vérifier immédiatement
+        checkInput(input);
     }
 });
+
+// Ajouter aussi un événement blur pour vérifier quand on quitte le champ
+document.addEventListener("blur", (e) => {
+    const input = e.target;
+    
+    if (isExtensionField(input)) {
+        return;
+    }
+
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    if (isSummary) {
+        checkInput(input);
+    }
+}, true);
+
+// Modifier la fonction checkInput pour supprimer le délai
+function checkInput(input) {
+    // Ignorer les champs appartenant à l'extension
+    if (isExtensionField(input)) {
+        return;
+    }
+    
+    // Vérifier si c'est le champ summary
+    const isSummary = input.id === "summary" || 
+                     input.name === "summary" || 
+                     input.classList.contains("summary-field");
+    
+    // Ne traiter que le champ summary
+    if (isSummary) {
+        const text = input.value.trim();
+
+        if (text === "") {
+            // Si le champ est vide, revenir à l'état initial (icône par défaut)
+            updateErrorBubble(0);
+        } else {
+            // Vérifier et mettre à jour immédiatement
+            checkText(input);
+            updateErrorBubble(errorCount);
+        }
+    }
+}
 
 // Fonction pour ajouter des contrôles supplémentaires
 function addAdditionalControls() {
@@ -591,11 +636,6 @@ document.addEventListener("input", (e) => {
 function validateSegment(segment) {
     const errors = [];
 
-    // Check [$id]
-    const idRegex = /^\[SWP-\d+\]/;
-    if (!idRegex.test(segment)) {
-        errors.push("Invalid 'id' format. Expected format: [SWP-'X']");
-    }
 
     // Check [IPNext]
     if (!segment.includes("[IPNext]")) {
@@ -646,7 +686,7 @@ function checkText(input) {
 }
 
 // Écouter les changements dans les champs de texte
-document.addEventListener("input", (e) => {
+/*document.addEventListener("input", (e) => {
     const input = e.target;
 
     // Cibler les champs de saisie spécifiques
@@ -655,7 +695,7 @@ document.addEventListener("input", (e) => {
         timeoutId = setTimeout(() => checkInput(input), 500); 
     }
 });
-
+*/
 // Fonction d'autocomplétion pour le champ summary
 function initSummaryAutocomplete() {
     // Identifie le champ summary
@@ -764,15 +804,15 @@ function initSummaryAutocomplete() {
         let newText = text;
         
         switch (currentSegment) {
-            case 0: // Après ID, ajouter espace + [IPNext]
-                newText = text + ' [IPNext]';
+            case 0: // Après ID, ajouter [IPNext] sans espace
+                newText = text + '[IPNext]';
                 inputField.value = newText;
                 inputField.setSelectionRange(newText.length, newText.length);
                 currentSegment = 1;
                 
-                // Ajouter automatiquement le segment suivant avec le crochet ouvrant après [IPNext]
+                // Ajouter automatiquement le segment suivant avec le crochet ouvrant
                 setTimeout(() => {
-                    newText += ' [';
+                    newText += '[';
                     inputField.value = newText;
                     inputField.setSelectionRange(newText.length, newText.length);
                     currentSegment = 2;
@@ -780,22 +820,22 @@ function initSummaryAutocomplete() {
                 }, 100);
                 break;
                 
-            case 1: // Après IPNext, ajouter espace + [
-                newText = text + ' [';
+            case 1: // Après IPNext, ajouter [ sans espace
+                newText = text + '[';
                 inputField.value = newText;
                 inputField.setSelectionRange(newText.length, newText.length);
                 currentSegment = 2;
                 showActivityMenu(inputField, newText.length);
                 break;
                 
-            case 2: // Après Activity, ajouter espace + :
-                newText = text + ' :';
+            case 2: // Après Activity, ajouter : sans espace
+                newText = text + ':';
                 inputField.value = newText;
                 inputField.setSelectionRange(newText.length, newText.length);
                 currentSegment = 3;
                 break;
                 
-            case 3: // Après les deux-points, ajouter espace
+            case 3: // Après les deux-points, ajouter espace pour la description
                 newText = text + ' ';
                 inputField.value = newText;
                 inputField.setSelectionRange(newText.length, newText.length);
@@ -806,7 +846,6 @@ function initSummaryAutocomplete() {
         // Déclencher un événement input pour vérifier la validité
         inputField.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    
     // Fonction pour compléter le segment actuel
     function completeCurrentSegment(inputField, text, position) {
         let newText = text;
@@ -861,36 +900,35 @@ function initSummaryAutocomplete() {
                 inputField.value = '[' + text;
                 inputField.setSelectionRange(position + 1, position + 1);
             }
-            // Si l'utilisateur tape "SWP" sans le tiret, ajouter le tiret
-            if (text.includes('SWP') && !text.includes('SWP-')) {
-                const newText = text.replace('SWP', 'SWP-');
-                inputField.value = newText;
-                inputField.setSelectionRange(position + 1, position + 1);
-            }
             
-            // Si l'utilisateur tape juste un nombre sans SWP, ajouter le préfixe SWP-
+            // Si l'utilisateur tape juste un nombre, garder le format simple
             const idContent = text.match(/\[(\d+)/);
             if (idContent) {
-                const newText = text.replace('[' + idContent[1], '[SWP-' + idContent[1]);
-                inputField.value = newText;
-                inputField.setSelectionRange(position + 4, position + 4); // +4 pour "SWP-"
+                // Ne rien faire de spécial, conserver le numéro tel quel
             }
         }
         
         // Autocomplétion pour IPNext
         if (currentSegment === 1) {
-            // Si l'utilisateur tape "ip", autocompléter en "IPNext"
-            const lastSegment = text.substring(text.indexOf(']') + 1).trim();
-            if (lastSegment.startsWith('[i') || lastSegment.startsWith('[I')) {
-                const newText = text.substring(0, text.indexOf(']') + 1) + ' [IPNext]';
+            // Si l'utilisateur commence à taper après le premier segment, ajouter [
+            const afterId = text.substring(text.indexOf(']') + 1).trim();
+            if (afterId === '' && position === text.indexOf(']') + 1) {
+                const newText = text + '[';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+            }
+            
+            // Si l'utilisateur tape "i" ou "I", autocompléter en "IPNext"
+            if (afterId.startsWith('[i') || afterId.startsWith('[I')) {
+                const newText = text.substring(0, text.indexOf(']') + 1) + '[IPNext]';
                 inputField.value = newText;
                 inputField.setSelectionRange(newText.length, newText.length);
                 
                 // Ajouter automatiquement le segment suivant avec le crochet ouvrant
                 setTimeout(() => {
-                    inputField.value = newText + ' [';
-                    inputField.setSelectionRange(newText.length + 2, newText.length + 2);
-                    showActivityMenu(inputField, newText.length + 2);
+                    inputField.value = newText + '[';
+                    inputField.setSelectionRange(newText.length + 1, newText.length + 1);
+                    showActivityMenu(inputField, newText.length + 1);
                     currentSegment = 2;
                 }, 100);
             }
@@ -899,12 +937,52 @@ function initSummaryAutocomplete() {
         // Autocomplétion pour Activity
         if (currentSegment === 2) {
             const segments = parseSegments(text);
+            
+            // Si l'utilisateur a commencé à taper après IPNext, ajouter [
+            if (segments.ipNext && !text.includes('[', text.indexOf('IPNext]') + 7) && 
+                position === text.indexOf('IPNext]') + 7) {
+                const newText = text + '[';
+                inputField.value = newText;
+                inputField.setSelectionRange(newText.length, newText.length);
+                showActivityMenu(inputField, position + 1);
+            }
+            
+            // Si l'utilisateur a commencé à taper une activité, afficher et filtrer le menu
             if (segments.partial && !segments.activity) {
-                // Si l'utilisateur a commencé à taper une activité
                 showActivityMenu(inputField, position);
+                
+                // Filtrer les activités en fonction de ce qui a été tapé
+                const typed = segments.partial.substring(1); // Supprimer le crochet initial
+                if (typed.length > 0) {
+                    filterActivityMenu(typed);
+                }
             }
         }
     }
+    function filterActivityMenu(filter) {
+        if (!activityMenu) return;
+        
+        const options = activityMenu.querySelectorAll('div');
+        const filterLower = filter.toLowerCase();
+        let hasMatches = false;
+        
+        options.forEach(option => {
+            const text = option.textContent.toLowerCase();
+            if (text.includes(filterLower)) {
+                option.style.display = 'block';
+                hasMatches = true;
+            } else {
+                option.style.display = 'none';
+            }
+        });
+        
+        // Si aucune correspondance, afficher toutes les options
+        if (!hasMatches) {
+            options.forEach(option => {
+                option.style.display = 'block';
+            });
+        }
+    }    
     
     // Fonction pour afficher le menu d'activités
     function showActivityMenu(inputField, position) {
@@ -931,7 +1009,7 @@ function initSummaryAutocomplete() {
         // Positionner le menu sous le champ de saisie
         const rect = inputField.getBoundingClientRect();
         activityMenu.style.top = (rect.bottom + 5) + 'px';
-        activityMenu.style.left = (rect.left + position * 8) + 'px'; // Estimation de la position du curseur
+        activityMenu.style.left = (rect.left + (position * 8)) + 'px'; // Estimation de la position du curseur
         
         // Ajouter les options d'activité
         validActivities.forEach(activity => {
@@ -972,6 +1050,20 @@ function initSummaryAutocomplete() {
                 activityMenu.remove();
                 activityMenu = null;
                 
+                // Ajouter automatiquement le : après l'activité
+                setTimeout(() => {
+                    inputField.value = newText + ':';
+                    inputField.setSelectionRange(newText.length + 1, newText.length + 1);
+                    currentSegment = 3;
+                    
+                    // Ajouter l'espace pour commencer la description
+                    setTimeout(() => {
+                        inputField.value = newText + ': ';
+                        inputField.setSelectionRange(newText.length + 2, newText.length + 2);
+                        currentSegment = 4;
+                    }, 50);
+                }, 50);
+                
                 // Déclencher un événement input pour vérifier la validité
                 inputField.dispatchEvent(new Event('input', { bubbles: true }));
             });
@@ -991,7 +1083,6 @@ function initSummaryAutocomplete() {
             }
         });
     }
-    
     // Fonction pour analyser les segments du texte
     function parseSegments(text) {
         const result = {

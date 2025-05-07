@@ -1229,10 +1229,40 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     return true; // Keep the message channel open for async response
   }
 });
-
-
 // Log initialization
 console.log('Extension initialisée');
+// Variables globales
+let chatBubble = null;
+
+// Écouter les événements de clic sur l'icône de l'extension
+chrome.action.onClicked.addListener((tab) => {
+    // Injecter le script pour créer la bulle de chat
+    chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: injectChatBubble
+    });
+});
+
+// Fonction pour injecter la bulle de chat
+function injectChatBubble() {
+    if (typeof createBubbleChat === 'function') {
+        const bubble = createBubbleChat();
+        if (bubble) {
+            // Simuler un clic sur la bulle pour ouvrir automatiquement le chat
+            bubble.click();
+        }
+    } else {
+        console.error("La fonction createBubbleChat n'est pas définie");
+    }
+}
+
+// Communication avec l'extension
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "toggleChatBubble") {
+        sendResponse({ success: true });
+        return true;
+    }
+});
 
 // Start monitoring when service worker is activated
 startMonitoring();
