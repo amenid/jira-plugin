@@ -1,14 +1,112 @@
-// Existing constants and global variables
+// Combined content.js - Generated on 5/7/2025, 9:19:45 PM
+
+// =============================================
+// constants.js
+// =============================================
+
+// Global constants
 const validActivities = ["Nightly", "Coverage", "Periodic_2h", "Weekly", "FV", "PreInt", "PreGate"];
 
-// Global variables
+// Global error state
+const errorFlags = {
+    priority: false,
+    components: false,
+    version: false
+};
+
+const errorState = {
+    categorization: false,
+    variant2: false,
+    errorOccurrence: false,
+    otherText: false
+};
+
+// Active alerts tracking
+const activeAlerts = new Set();
+
+// =============================================
+// domHelpers.js
+// =============================================
+
+/**
+ * Determines if an element belongs to the extension
+ * @param {HTMLElement} element - DOM element to check
+ * @returns {boolean} True if the element is part of the extension
+ */
+function isExtensionField(element) {
+    // Vérifier si le champ se trouve dans un conteneur de l'extension
+    const isInExtension = element.closest("#errorBubble") || 
+                         element.closest("#chatBubble") || 
+                         element.closest("#chatBotContainer") ||
+                         element.closest("#errorAlertsContainer");
+    
+    // Vérifier les identifiants ou classes qui pourraient indiquer un champ de l'extension
+    const hasExtensionClass = element.classList && (
+        element.classList.contains("ext-field") || 
+        element.id?.startsWith("ext-") ||
+        element.id?.includes("bubble") ||
+        element.id?.includes("chat")
+    );
+    
+    return isInExtension || hasExtensionClass;
+}
+
+/**
+ * Sets up MutationObserver to watch for DOM changes and initialize components when needed
+ * @param {Function} callback - Function to call when relevant DOM nodes are added
+ * @param {string} selector - CSS selector to look for
+ */
+function setupDOMObserver(callback, selector) {
+    const observer = new MutationObserver(function(mutations) {
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if target element exists in added node
+                        const targetElement = node.querySelector(selector) || 
+                                            (node.matches(selector) ? node : null);
+                        if (targetElement) {
+                            callback();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    return observer;
+}
+
+/**
+ * Sets up an observer for a specific element
+ * @param {string} elementId - ID of the element to observe
+ * @param {Function} callback - Function to call when element changes
+ * @returns {MutationObserver|null} The observer or null if element not found
+ */
+function observeElement(elementId, callback) {
+    const element = document.getElementById(elementId);
+    if (!element) return null;
+    
+    const observer = new MutationObserver(callback);
+    observer.observe(element, { childList: true, subtree: true });
+    return observer;
+}
+
+// =============================================
+// errorBubble.js
+// =============================================
+
+// Error bubble functionality
 let errorBubble;
-let chatBubble;
 let errorCount = 0;
 let timeoutId;
 
-
-
+/**
+ * Creates error bubble UI element for showing validation errors
+ * @returns {HTMLElement} The error bubble element
+ */
 function createErrorBubble() {
     if (document.getElementById("errorBubble")) {
         return document.getElementById("errorBubble");
@@ -165,6 +263,7 @@ function createErrorBubble() {
         window._currentResizeHandler = updatePosition;
         window.addEventListener('resize', window._currentResizeHandler);
     }
+
     function attachInputListeners() {
         // For input fields, textareas, and contenteditable elements
         const inputSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], textarea, [contenteditable="true"]';
@@ -244,8 +343,447 @@ function createErrorBubble() {
     return errorBubble;
 }
 
+/**
+ * Updates the error bubble UI based on error count
+ * @param {number} count - Number of errors to display
+ */
+function updateErrorBubble(count) {
+    errorCount = count;
+    const bubble = document.getElementById("errorBubble") || createErrorBubble();
+    const icon = document.getElementById("bubbleIcon");
+    const text = document.getElementById("errorCount");
+
+    if (count > 0) {
+        // If errors are detected
+        Object.assign(bubble.style, {
+            backgroundColor: "#ff4444",
+            borderColor: "#ff0000",
+            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
+        });
+        
+        // Hide the icon
+        if (icon) {
+            icon.style.display = "none";
+        }
+        
+        // Show the text with the error count and ensure it's centered
+        if (text) {
+            text.style.display = "flex";
+            text.textContent = count.toString();
+            
+            // Ajustement supplémentaire pour les grands nombres
+            if (count > 9) {
+                text.style.fontSize = "14px";
+            } else {
+                text.style.fontSize = "16px";
+            }
+        }
+        
+        // Add a pulsing animation
+        bubble.style.animation = "pulse 2s infinite";
+        if (!document.getElementById("bubbleAnimation")) {
+            const style = document.createElement("style");
+            style.id = "bubbleAnimation";
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    } else {
+        // If no errors are detected
+        Object.assign(bubble.style, {
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderColor: "transparent",
+            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
+            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
+            animation: "none"
+        });
+        
+        // Show the icon
+        if (icon) {
+            icon.style.display = "block";
+        }
+        
+        // Hide the error count text
+        if (text) {
+            text.style.display = "none";
+        }
+    }
+    
+    // Update the submit button state
+    updateCreateButton();
+}
+
+/**
+ * Updates the create button state based on error count
+ */
+function updateCreateButton() {
+    const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
+    
+    if (createButton) {
+        if (errorCount > 0) {
+            createButton.disabled = true;
+            createButton.style.opacity = "0.5";
+            createButton.style.cursor = "not-allowed";
+            
+            // Add a title attribute to explain why it's disabled
+            createButton.setAttribute("title", "Please fix all errors before submitting");
+        } else {
+            createButton.disabled = false;
+            createButton.style.opacity = "1";
+            createButton.style.cursor = "pointer";
+            createButton.removeAttribute("title");
+        }
+    }
+}
+
+/**
+ * Sets up a MutationObserver to watch for the button
+ */
+function preventTicketSubmission() {
+    // First check if the button already exists
+    updateCreateButton();
+    
+    // Then set up an observer to watch for the button if it doesn't exist yet
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.addedNodes.length) {
+                // Check if our button has been added
+                const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
+                if (createButton) {
+                    updateCreateButton();
+                }
+            }
+        });
+    });
+    
+    // Watch for changes in the DOM where the button might be added
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+/**
+ * Get the current error count
+ * @returns {number} Current error count
+ */
+function getErrorCount() {
+    return errorCount;
+}
+
+/**
+ * Set the error count
+ * @param {number} count - New error count
+ */
+function setErrorCount(count) {
+    errorCount = count;
+    updateErrorBubble(errorCount);
+}
+
+/**
+ * Get the current timeout ID
+ * @returns {number} Current timeout ID
+ */
+function getTimeoutId() {
+    return timeoutId;
+}
+
+/**
+ * Set the timeout ID
+ * @param {number} id - New timeout ID
+ */
+function setTimeoutId(id) {
+    timeoutId = id;
+}
+
+// =============================================
+// fieldValidation.js
+// =============================================
 
 
+/**
+ * Validates a text segment to ensure it meets the required format
+ * @param {string} segment - Text segment to validate
+ * @returns {Array} Array of error messages
+ */
+function validateSegment(segment) {
+    const errors = [];
+
+    // Check [$id]
+    const idRegex = /^\[SWP-\d+\]/;
+    if (!idRegex.test(segment)) {
+        errors.push("Invalid 'id' format. Expected format: [SWP-'X']");
+    }
+
+    // Check [IPNext]
+    if (!segment.includes("[IPNext]")) {
+        errors.push("Missing 'IPNext' field");
+    }
+
+    // Check [$activity]
+    const activityRegex = /\[(Nightly|Coverage|Periodic_2h|Weekly|FV|PreInt|PreGate)\]/;
+    if (!activityRegex.test(segment)) {
+        errors.push("Invalid 'activity'. Allowed values: Nightly, Coverage, Periodic_2h, Weekly, FV, PreInt, PreGate");
+    }
+
+    // Check ": $text"
+    if (!segment.includes(":")) {
+        errors.push("Missing ': text' format");
+    }
+
+    return errors;
+}
+
+/**
+ * Validates component field
+ * @param {Event} event - Change event
+ * @returns {boolean} True if there's an error
+ */
+function checkComponent(event) {
+    const input = event.target;
+    const value = input.value.trim();
+    
+    // Exemple de validation spécifique
+    if (value === "" || value === "none") {
+        showUniqueError(input, "Le composant ne peut pas être vide ou 'none'");
+        setErrorCount(getErrorCount() + 1);
+    }
+    
+    updateErrorBubble(getErrorCount());
+    return value === "" || value === "none"; // Retourne true si erreur
+}
+
+/**
+ * Validates priority field
+ * @param {Event} event - Change event
+ */
+function checkPriority(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === "none" && !errorFlags.priority) {
+        setErrorCount(getErrorCount() + 1);
+        errorFlags.priority = true;
+        alert("Erreur : 'none' ne doit pas être sélectionné pour la priorité !");
+    } else if (selectedValue !== "none" && errorFlags.priority) {
+        setErrorCount(getErrorCount() - 1);
+        errorFlags.priority = false;
+    }
+
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Validates components field
+ * @param {Event} event - Change event
+ */
+function checkComponents(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === "none" && !errorFlags.components) {
+        setErrorCount(getErrorCount() + 1);
+        errorFlags.components = true;
+        alert("Erreur : 'none' ne doit pas être sélectionné pour les composants !");
+    } else if (selectedValue !== "none" && errorFlags.components) {
+        setErrorCount(getErrorCount() - 1);
+        errorFlags.components = false;
+    }
+
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Validates version field
+ * @param {Event} event - Change event
+ */
+function checkVersion(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === "none" && !errorFlags.version) {
+        setErrorCount(getErrorCount() + 1);
+        errorFlags.version = true;
+        alert("Erreur : 'none' ne doit pas être sélectionné pour la version !");
+    } else if (selectedValue !== "none" && errorFlags.version) {
+        setErrorCount(getErrorCount() - 1);
+        errorFlags.version = false;
+    }
+
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Enforces unassigned value for assignee field
+ */
+function enforceUnassigned() {
+    const assignee = document.getElementById("assignee-field");
+    if (assignee && assignee.textContent !== "Unassigned") {
+        assignee.textContent = "Unassigned";
+    }
+}
+
+/**
+ * Validates categorization field 
+ */
+function categorization() {
+    const selectElement = document.getElementById("labels-field");
+    if (selectElement && selectElement.value === "D0_sample") {
+        if (!errorState.categorization) {
+            setErrorCount(getErrorCount() + 1);
+            errorState.categorization = true;
+        }
+    } else {
+        if (errorState.categorization) {
+            setErrorCount(getErrorCount() - 1);
+            errorState.categorization = false;
+        }
+    }
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Sets variant field to ipn_10
+ */
+function variant() {
+    const variantElement = document.getElementById("variant");
+    if (variantElement) {
+        variantElement.textContent = "ipn_10";
+    }
+}
+
+/**
+ * Validates variant2 field
+ */
+function variant2() {
+    const variant2Element = document.getElementById("variant2");
+    if (variant2Element) {
+        const options = Array.from(variant2Element.options);
+        const selectedValues = options
+            .filter(option => option.selected)
+            .map(option => option.value);
+
+        // Vérifie si au moins une des options est sélectionnée
+        const isValid = selectedValues.some(value => value === "IPN_10 PERF" || value === "IPN_10 Main");
+
+        if (!isValid && !errorState.variant2) {
+            setErrorCount(getErrorCount() + 1);
+            errorState.variant2 = true;
+        } else if (isValid && errorState.variant2) {
+            setErrorCount(getErrorCount() - 1);
+            errorState.variant2 = false;
+        }
+    }
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Validates error occurrence field
+ */
+function errorOccurrence() {
+    const errorOccurrenceElement = document.getElementById("errorOccurrence");
+    if (errorOccurrenceElement && errorOccurrenceElement.value === "none") {
+        if (!errorState.errorOccurrence) {
+            setErrorCount(getErrorCount() + 1);
+            errorState.errorOccurrence = true;
+        }
+    } else {
+        if (errorState.errorOccurrence) {
+            setErrorCount(getErrorCount() - 1);
+            errorState.errorOccurrence = false;
+        }
+    }
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Validates text field for specific prefix
+ * @param {HTMLElement} inputElement - Input element to validate
+ * @param {string} prefix - Required prefix
+ */
+function otherText(inputElement, prefix) {
+    if (inputElement) {
+        const text = inputElement.value.trim();
+        if (!text.startsWith(prefix)) {
+            if (!errorState.otherText) {
+                setErrorCount(getErrorCount() + 1);
+                errorState.otherText = true;
+            }
+        } else {
+            if (errorState.otherText) {
+                setErrorCount(getErrorCount() - 1);
+                errorState.otherText = false;
+            }
+        }
+    }
+    updateErrorBubble(getErrorCount());
+}
+
+/**
+ * Add additional validation controls to form
+ */
+function addAdditionalControls() {
+    // Identifier tous les champs à valider
+    const fieldsToValidate = [
+        { id: "component", validator: checkComponent },
+        { id: "version", validator: checkVersion },
+        { id: "priority", validator: checkPriority }
+        // Ajoutez d'autres champs ici selon vos besoins
+    ];
+    
+    // Attacher les validateurs aux champs
+    fieldsToValidate.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            element.addEventListener("change", field.validator);
+            element.addEventListener("input", field.validator);
+            
+            // Vérification initiale
+            field.validator({ target: element });
+        }
+    });
+}
+
+/**
+ * Initialize event listeners for all validation fields
+ */
+function initializeEventListeners() {
+    const labelsElement = document.getElementById("labels-field");
+    const variant2Element = document.getElementById("variant2");
+    const errorOccurrenceElement = document.getElementById("errorOccurrence");
+    const exampleTextElement = document.getElementById("exampleText"); // Exemple de champ texte
+
+    if (labelsElement) {
+        labelsElement.addEventListener("change", categorization);
+    }
+
+    if (variant2Element) {
+        variant2Element.addEventListener("change", variant2);
+    }
+
+    if (errorOccurrenceElement) {
+        errorOccurrenceElement.addEventListener("change", errorOccurrence);
+    }
+
+    if (exampleTextElement) {
+        exampleTextElement.addEventListener("input", () => {
+            otherText(exampleTextElement, "[TestSuitaName]:"); 
+        });
+    }
+}
+
+// =============================================
+// errorHandling.js
+// =============================================
+
+
+/**
+ * Creates container for error alerts
+ * @returns {HTMLElement} The error alerts container
+ */
 function createErrorContainer() {
     // Vérifier si le conteneur existe déjà
     if (document.getElementById("errorAlertsContainer")) {
@@ -272,6 +810,11 @@ function createErrorContainer() {
     return alertsContainer;
 }
 
+/**
+ * Shows an error message in the UI
+ * @param {HTMLElement} input - The input field related to the error
+ * @param {string} message - The error message to display
+ */
 function showError(input, message) {
     const alertsContainer = createErrorContainer();
     
@@ -368,11 +911,68 @@ function showError(input, message) {
     }, 5000);
 }
 
-let activeAlerts = new Set();
+/**
+ * Shows a unique error message (prevents duplicates)
+ * @param {HTMLElement} input - The input field related to the error
+ * @param {string} message - The error message to display
+ */
+function showUniqueError(input, message) {
+    // If this message is already displayed, don't duplicate it
+    if (activeAlerts.has(message)) {
+        return;
+    }
+    
+    activeAlerts.add(message);
+    showError(input, message);
+    
+    // Remove from tracker after display delay
+    setTimeout(() => {
+        activeAlerts.delete(message);
+    }, 5000);
+    
+    // Update the button state whenever errors are shown
+    updateErrorBubble(getErrorCount());
+}
 
-// Fonction qui vérifie les doublons avant d'afficher l'erreur
+/**
+ * Checks the text content for errors
+ * @param {HTMLElement} input - The input field to check
+ * @returns {boolean} Whether there are errors
+ */
+function checkText(input) {
+    const text = input.value.trim();
+    const lines = text.split('\n'); 
+    let newErrorCount = 0;
 
-// Modification de la fonction checkInput pour cibler spécifiquement le champ summary
+    lines.forEach((line, lineIndex) => {
+        if (line.trim() === '') return; // Skip empty lines
+        
+        const errors = validateSegment(line);
+
+        if (errors.length > 0) {
+            newErrorCount += errors.length;
+            errors.forEach((error, errorIndex) => {
+                showUniqueError(input, ` ${error}`);
+            });
+        }
+    });
+
+    // Update the global error count and bubble
+    if (newErrorCount !== getErrorCount()) {
+        setErrorCount(newErrorCount);
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+            chrome.runtime.sendMessage({ type: "updateErrors", count: newErrorCount });
+        }
+        console.log("Current error count:", newErrorCount);
+    }
+
+    return newErrorCount > 0; // Return boolean indicating if there are errors
+}
+
+/**
+ * Check input field for validation
+ * @param {HTMLElement} input - Input element to check
+ */
 function checkInput(input) {
     // Ignorer les champs appartenant à l'extension
     if (isExtensionField(input)) {
@@ -392,171 +992,268 @@ function checkInput(input) {
             // Si le champ est vide, revenir à l'état initial (icône par défaut)
             updateErrorBubble(0);
         } else {
-            const hasErrors = checkText(input);
-            // Use the global errorCount instead of the boolean return value
-            updateErrorBubble(errorCount);
+            checkText(input);
+            // Use the global errorCount from getErrorCount
+            updateErrorBubble(getErrorCount());
         }
     }
 }
 
-// Modification de l'écoute des événements pour se concentrer sur le champ summary
-document.addEventListener("input", (e) => {
-    const input = e.target;
-    
-    // Ignorer les champs de l'extension
-    if (isExtensionField(input)) {
-        return;
-    }
+// =============================================
+// chatBubble.js
+// =============================================
 
-    // Vérifier si c'est le champ summary
-    const isSummary = input.id === "summary" || 
-                      input.name === "summary" || 
-                      input.classList.contains("summary-field");
-    
-    // Ne traiter que le champ summary
-    if (isSummary) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => checkInput(input), 500);
-    }
-});
+let chatBubble;
 
-// Fonction pour ajouter des contrôles supplémentaires
-function addAdditionalControls() {
-    // Identifier tous les champs à valider
-    const fieldsToValidate = [
-        { id: "component", validator: checkComponent },
-        { id: "version", validator: checkVersion },
-        { id: "priority", validator: checkPriority }
-        // Ajoutez d'autres champs ici selon vos besoins
-    ];
+/**
+ * Creates and returns the chat bubble element
+ * @returns {HTMLElement} The chat bubble element
+ */
+function createBubbleChat() {
+    // Vérifie si la bulle existe déjà
+    if (document.getElementById("chatBubble")) {
+        const existingBubble = document.getElementById("chatBubble");
+        existingBubble.style.display = "flex"; // S'assurer que la bulle est visible
+        existingBubble.style.visibility = "visible";
+        return existingBubble;
+    }
     
-    // Attacher les validateurs aux champs
-    fieldsToValidate.forEach(field => {
-        const element = document.getElementById(field.id);
-        if (element) {
-            element.addEventListener("change", field.validator);
-            element.addEventListener("input", field.validator);
-            
-            // Vérification initiale
-            field.validator({ target: element });
+    // Créer la bulle de chat
+    const chatBubble = document.createElement("div");
+    chatBubble.id = "chatBubble";
+    Object.assign(chatBubble.style, {
+        position: "fixed",
+        bottom: "20px",
+        right: "20px",
+        width: "60px",
+        height: "60px",
+        backgroundColor: "transparent", // Arrière-plan transparent
+        color: "white",
+        borderRadius: "50%",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        transition: "all 0.3s ease",
+        zIndex: "2147483647", // Maximum z-index pour être au-dessus de tout
+        border: "none",
+        cursor: "pointer",
+        background: "transparent",
+        visibility: "visible"
+    });
+
+    // Contenu - image qui occupe toute la bulle
+    const content = document.createElement("div");
+    content.id = "chatBubbleContent";
+    content.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        overflow: hidden;
+    `;
+
+    // Image PNG plein écran
+    const chatImage = document.createElement("img");
+    chatImage.src = chrome.runtime.getURL("chat.png");
+    chatImage.style.cssText = `
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    `;
+    
+    content.appendChild(chatImage);
+    chatBubble.appendChild(content);
+
+    // Bouton de fermeture
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✖";
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        width: 18px;
+        height: 18px;
+        background: #ff4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        transform: translate(50%, -50%);
+        z-index: 10001;
+    `;
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        chatBubble.style.display = "none";
+        
+        // Stocker l'état dans le localStorage
+        localStorage.setItem("chatBubbleHidden", "true");
+        
+        // Réafficher après 1 heure
+        setTimeout(() => {
+            chatBubble.style.display = "flex";
+            localStorage.removeItem("chatBubbleHidden");
+        }, 3600000);
+    });
+    chatBubble.appendChild(closeBtn);
+    
+    // Important: Ajouter au document AVANT de créer le conteneur de chat
+    document.body.appendChild(chatBubble);
+
+    // Conteneur de chat
+    const chatContainer = document.createElement("div");
+    chatContainer.id = "chatBotContainer";
+    Object.assign(chatContainer.style, {
+        position: "fixed",
+        bottom: "90px",
+        right: "20px",
+        width: "350px",
+        height: "500px",
+        backgroundColor: "white",
+        boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+        borderRadius: "10px",
+        overflow: "hidden",
+        display: "none",
+        zIndex: "9999"
+    });
+
+    // Iframe pour le chat
+    const iframe = document.createElement("iframe");
+    iframe.src = "http://localhost:8501"; // Changez cette URL pour la production
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.style.border = "none";
+
+    chatContainer.appendChild(iframe);
+    document.body.appendChild(chatContainer);
+
+    // Toggle du chat en cliquant sur la bulle
+    let chatVisible = false;
+    chatBubble.addEventListener("click", () => {
+        chatVisible = !chatVisible;
+        chatContainer.style.display = chatVisible ? "block" : "none";
+        
+        // Effet visuel pour montrer l'état actif
+        if (chatVisible) {
+            chatBubble.style.boxShadow = "0 0 15px rgba(0,0,0,0.25)";
+            chatBubble.style.transform = "scale(1.05)";
+        } else {
+            chatBubble.style.boxShadow = "0 2px 10px rgba(0,0,0,0.15)";
+            chatBubble.style.transform = "scale(1)";
         }
     });
-}
 
-// Exemple de fonction de validation pour un nouveau champ
-function checkComponent(event) {
-    const input = event.target;
-    const value = input.value.trim();
-    
-    // Exemple de validation spécifique
-    if (value === "" || value === "none") {
-        showUniqueError(input, "Le composant ne peut pas être vide ou 'none'");
-        errorCount++;
+    // Vérifier si la bulle était précédemment cachée
+    if (localStorage.getItem("chatBubbleHidden") === "true") {
+        chatBubble.style.display = "none";
     } else {
+        // Ajouter un effet d'apparition
+        chatBubble.style.transform = "scale(0)";
+        setTimeout(() => {
+            chatBubble.style.transform = "scale(1)";
+        }, 100);
+    }
+
+    console.log("Chat bubble created and added to DOM with id:", chatBubble.id);
+    return chatBubble;
+}
+
+/**
+ * Sets up listeners for extension messages
+ */
+function setupExtensionListener() {
+    // S'assurer que chrome.runtime est disponible
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+        chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
+            if (message.action === "toggleChatBubble") {
+                const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
+                const chatContainer = document.getElementById("chatBotContainer");
+                
+                // Afficher la bulle si elle était cachée
+                if (chatBubble.style.display === "none") {
+                    chatBubble.style.display = "flex";
+                    localStorage.removeItem("chatBubbleHidden");
+                    
+                    // Effet d'apparition
+                    chatBubble.style.transform = "scale(0)";
+                    setTimeout(() => {
+                        chatBubble.style.transform = "scale(1)";
+                    }, 100);
+                }
+                
+                // Ouvrir automatiquement la fenêtre de chat
+                chatContainer.style.display = "block";
+                chatBubble.style.transform = "scale(1.05)";
+                
+                sendResponse({success: true});
+                return true; // Important pour les réponses asynchrones
+            }
+        });
+    } else {
+        console.warn("Chrome runtime not available for extension messaging");
+    }
+}
+
+/**
+ * Function to show the chat bubble (to be called from popup.js)
+ * @returns {boolean} Success status
+ */
+function afficherBulle() {
+    const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
+    const chatContainer = document.getElementById("chatBotContainer");
+    
+    // Assurer que la bulle est visible
+    chatBubble.style.display = "flex";
+    chatBubble.style.visibility = "visible";
+    localStorage.removeItem("chatBubbleHidden");
+    
+    // Effet d'apparition
+    chatBubble.style.transform = "scale(0)";
+    setTimeout(() => {
+        chatBubble.style.transform = "scale(1)";
+    }, 100);
+    
+    // Ouvrir automatiquement la fenêtre de chat
+    chatContainer.style.display = "block";
+    chatBubble.style.transform = "scale(1.05)";
+    
+    return true;
+}
+
+/**
+ * Initializes all chat features
+ */
+function initializeChatFeatures() {
+    try {
+        // Créer la bulle de chat immédiatement
+        const chatBubble = createBubbleChat();
+        console.log("Chat bubble successfully created");
         
+        // Configurer l'écouteur d'extension
+        setupExtensionListener();
+        
+        console.log("Chat features initialized successfully");
+    } catch (error) {
+        console.error("Failed to initialize chat features:", error);
     }
-    
-    updateErrorBubble(errorCount);
-    return value === "" || value === "none"; // Retourne true si erreur
 }
 
-document.addEventListener("DOMContentLoaded", function() {
-    createErrorBubble();
-    updateErrorBubble(0);
-    
-    addAdditionalControls();
-    
-    const summaryField = document.getElementById('summary') || 
-                         document.querySelector('input[name="summary"]') ||
-                         document.querySelector('.summary-field');
-    
-    if (summaryField) {
-        checkInput(summaryField);
-    }
-});
-
-// Fonction pour déterminer si un champ appartient à l'extension
-function isExtensionField(element) {
-    // Vérifier si le champ se trouve dans un conteneur de l'extension
-    const isInExtension = element.closest("#errorBubble") || 
-                         element.closest("#chatBubble") || 
-                         element.closest("#chatBotContainer") ||
-                         element.closest("#errorAlertsContainer");
-    
-    // Vérifier les identifiants ou classes qui pourraient indiquer un champ de l'extension
-    const hasExtensionClass = element.classList && (
-        element.classList.contains("ext-field") || 
-        element.id?.startsWith("ext-") ||
-        element.id?.includes("bubble") ||
-        element.id?.includes("chat")
-    );
-    
-    return isInExtension || hasExtensionClass;
-}
-// Écouter les changements dans les champs de texte avec une attention particulière pour le champ summary
-document.addEventListener("input", (e) => {
-    const input = e.target;
-    
-    // Ignorer les champs de l'extension
-    if (isExtensionField(input)) {
-        return;
-    }
-
-    // Vérifier si c'est le champ summary
-    const isSummary = input.id === "summary" || 
-                      input.name === "summary" || 
-                      input.classList.contains("summary-field");
-    
-    // Pour les champs de saisie standard et le champ summary
-    if (input.matches("textarea, input[type='text']") || isSummary) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => checkInput(input), 500); 
-    }
-});
-function validateSegment(segment) {
-    const errors = [];
-
-    // Check [$id]
-    const idRegex = /^\[SWP-\d+\]/;
-    if (!idRegex.test(segment)) {
-        errors.push("Invalid 'id' format. Expected format: [SWP-'X']");
-    }
-
-    // Check [IPNext]
-    if (!segment.includes("[IPNext]")) {
-        errors.push("Missing 'IPNext' field");
-    }
-
-    // Check [$activity]
-    const activityRegex = /\[(Nightly|Coverage|Periodic_2h|Weekly|FV|PreInt|PreGate)\]/;
-    if (!activityRegex.test(segment)) {
-        errors.push("Invalid 'activity'. Allowed values: Nightly, Coverage, Periodic_2h, Weekly, FV, PreInt, PreGate");
-    }
-
-    // Check ": $text"
-    if (!segment.includes(":")) {
-        errors.push("Missing ': text' format");
-    }
-
-    return errors;
-}
+// =============================================
+// summaryAutocomplete.js
+// =============================================
 
 
-
-
-
-// Écouter les changements dans les champs de texte
-document.addEventListener("input", (e) => {
-    const input = e.target;
-
-    // Cibler les champs de saisie spécifiques
-    if (input.matches("textarea, input[type='text']")) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => checkInput(input), 500); 
-    }
-});
-
-// Fonction d'autocomplétion pour le champ summary
+/**
+ * Initialize autocomplete functionality for the summary field
+ */
 function initSummaryAutocomplete() {
     // Identifie le champ summary
     const summaryField = document.getElementById('summary') || 
@@ -573,9 +1270,6 @@ function initSummaryAutocomplete() {
     
     // Ajouter une info-bulle explicative
     summaryField.title = "Format requis: [SWP-123] [IPNext] [Activity] : Description - Utilisez ESPACE pour naviguer entre les sections";
-    
-    // Liste des activités valides (déjà définie dans le code existant)
-    const validActivities = ["Nightly", "Coverage", "Periodic_2h", "Weekly", "FV", "PreInt", "PreGate"];
     
     // Variables pour suivre l'état de l'autocomplétion
     let currentSegment = 0; // 0 = id, 1 = IPNext, 2 = activity, 3 = text
@@ -952,744 +1646,164 @@ function initSummaryAutocomplete() {
     console.log("📝 Autocomplétion pour le champ summary initialisée");
 }
 
-// Exécuter l'initialisation quand le DOM est chargé
-document.addEventListener("DOMContentLoaded", function() {
+// =============================================
+// index.js
+// =============================================
+
+import { 
+    checkPriority, 
+    checkComponents, 
+    checkVersion, 
+    enforceUnassigned, 
+    variant, 
+    initializeEventListeners,
+    categorization,
+    variant2,
+    errorOccurrence,
+    otherText,
+    addAdditionalControls
+} from './fieldValidation.js';
+
+// Event listeners
+let timeoutId;
+
+/**
+ * Initializes all components and sets up event listeners
+ */
+function initializeAll() {
     try {
+        // Initialize error bubble
+        createErrorBubble();
+        updateErrorBubble(0);
+        
+        // Set up validators
+        const prioritySelect = document.getElementById("priority-val");
+        const componentsSelect = document.getElementById("components-field");
+        const versionSelect = document.getElementById("versions-field");
+
+        if (prioritySelect) {
+            prioritySelect.addEventListener("change", checkPriority);
+        }
+        if (componentsSelect) {
+            componentsSelect.addEventListener("change", checkComponents);
+        }
+        if (versionSelect) {
+            versionSelect.addEventListener("change", checkVersion);
+        }
+
+        // Initialize additional features
+        addAdditionalControls();
         initSummaryAutocomplete();
+        
+        // Initialize chat features
+        initializeChatFeatures();
+        
+        // Check initial field values
+        const summaryField = document.getElementById('summary') || 
+                             document.querySelector('input[name="summary"]') ||
+                             document.querySelector('.summary-field');
+        
+        if (summaryField) {
+            checkInput(summaryField);
+        }
+        
+        // Prevent submission with errors
+        preventTicketSubmission();
+        
+        // Set up assignee observer
+        const assigneeObserver = observeElement("assignee-field", enforceUnassigned);
+        
+        // Initialize validation features
+        variant();
+        initializeEventListeners();
+        categorization();
+        variant2();
+        errorOccurrence();
+        
+        // Example text field validation
+        const exampleText = document.getElementById("exampleText");
+        if (exampleText) {
+            otherText(exampleText, "[TestSuitaName]:");
+        }
+        
+        console.log("✅ JIRA plugin initialized successfully!");
     } catch (error) {
-        console.error("Erreur lors de l'initialisation de l'autocomplétion:", error);
+        console.error("Error during initialization:", error);
+    }
+}
+
+// Set up input event listeners for validation
+document.addEventListener("input", (e) => {
+    const input = e.target;
+    
+    // Check if it's the summary field
+    const isSummary = input.id === "summary" || 
+                      input.name === "summary" || 
+                      input.classList.contains("summary-field");
+    
+    // For text inputs and the summary field
+    if (input.matches("textarea, input[type='text']") || isSummary) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => checkInput(input), 500);
     }
 });
 
-// Si le document est déjà chargé
+// Set up extension message listener
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "toggleChatBubble") {
+        const bubble = createBubbleChat();
+        sendResponse({ success: true, bubbleId: bubble.id });
+        return true; // Indicates you wish to send a response asynchronously
+    }
+});
+
+// Initialize everything when the DOM is loaded
+document.addEventListener("DOMContentLoaded", initializeAll);
+
+// If document is already loaded, initialize
 if (document.readyState === "complete" || document.readyState === "interactive") {
-    try {
-        initSummaryAutocomplete();
-    } catch (error) {
-        console.error("Erreur lors de l'initialisation de l'autocomplétion:", error);
-    }
+    setTimeout(initializeAll, 100);
 }
 
-// Pour s'assurer que le script fonctionne même avec les chargements dynamiques
-const observer = new MutationObserver(function(mutations) {
-    for (const mutation of mutations) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            for (const node of mutation.addedNodes) {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    // Vérifier si un champ summary a été ajouté
-                    const summaryField = node.querySelector('#summary') || 
-                                         node.querySelector('input[name="summary"]') ||
-                                         node.querySelector('.summary-field');
-                    if (summaryField) {
-                        initSummaryAutocomplete();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-});
-
-observer.observe(document.body, { childList: true, subtree: true });
-// Contrôle de la priorité et autres validators
-const errorFlags = {
-    priority: false,
-    components: false,
-    version: false
-};
-
-// Contrôle de la priorité
-function checkPriority(event) {
-    const selectedValue = event.target.value;
-
-    if (selectedValue === "none" && !errorFlags.priority) {
-        errorCount += 1;
-        errorFlags.priority = true;
-        alert("Erreur : 'none' ne doit pas être sélectionné pour la priorité !");
-    } else if (selectedValue !== "none" && errorFlags.priority) {
-        errorCount -= 1;
-        errorFlags.priority = false;
-    }
-
-    updateErrorBubble(errorCount);
-}
-
-// Contrôle des composants
-function checkComponents(event) {
-    const selectedValue = event.target.value;
-
-    if (selectedValue === "none" && !errorFlags.components) {
-        errorCount += 1;
-        errorFlags.components = true;
-        alert("Erreur : 'none' ne doit pas être sélectionné pour les composants !");
-    } else if (selectedValue !== "none" && errorFlags.components) {
-        errorCount -= 1;
-        errorFlags.components = false;
-    }
-
-    updateErrorBubble(errorCount);
-}
-
-// Contrôle de la version
-function checkVersion(event) {
-    const selectedValue = event.target.value;
-
-    if (selectedValue === "none" && !errorFlags.version) {
-        errorCount += 1;
-        errorFlags.version = true;
-        alert("Erreur : 'none' ne doit pas être sélectionné pour la version !");
-    } else if (selectedValue !== "none" && errorFlags.version) {
-        errorCount -= 1;
-        errorFlags.version = false;
-    }
-
-    updateErrorBubble(errorCount);
-}
-
-// Assigner "Unassigned" à l'assignee
-function enforceUnassigned() {
-    const assignee = document.getElementById("assignee-field");
-    if (assignee && assignee.textContent !== "Unassigned") {
-        assignee.textContent = "Unassigned";
-    }
-}
-
-// Observer pour l'assignee
-const assigneeObserver = new MutationObserver(enforceUnassigned);
-const assigneeElement = document.getElementById("assignee-field");
-if (assigneeElement) {
-    assigneeObserver.observe(assigneeElement, { childList: true, subtree: true });
-}
-
-// État de validation supplémentaire
-const errorState = {
-    categorization: false,
-    variant2: false,
-    errorOccurrence: false,
-    otherText: false
-};
-
-// Fonction pour la catégorisation
-function categorization() {
-    const selectElement = document.getElementById("labels-field");
-    if (selectElement && selectElement.value === "D0_sample") {
-        if (!errorState.categorization) {
-            errorCount += 1;
-            errorState.categorization = true;
-        }
-    } else {
-        if (errorState.categorization) {
-            errorCount -= 1;
-            errorState.categorization = false;
-        }
-    }
-    updateErrorBubble(errorCount);
-}
-
-// Fonction pour afficher toujours "ipn_10"
-function variant() {
-    const variantElement = document.getElementById("variant");
-    if (variantElement) {
-        variantElement.textContent = "ipn_10";
-    }
-}
-
-// Fonction pour sélectionner une ou deux options : "IPN_10 PERF" et/ou "IPN_10 Main"
-function variant2() {
-    const variant2Element = document.getElementById("variant2");
-    if (variant2Element) {
-        const options = Array.from(variant2Element.options);
-        const selectedValues = options
-            .filter(option => option.selected)
-            .map(option => option.value);
-
-        // Vérifie si au moins une des options est sélectionnée
-        const isValid = selectedValues.some(value => value === "IPN_10 PERF" || value === "IPN_10 Main");
-
-        if (!isValid && !errorState.variant2) {
-            errorCount += 1;
-            errorState.variant2 = true;
-        } else if (isValid && errorState.variant2) {
-            errorCount -= 1;
-            errorState.variant2 = false;
-        }
-    }
-    updateErrorBubble(errorCount);
-}
-
-// Fonction pour vérifier que "ErrorOccurrence" n'est pas "none"
-function errorOccurrence() {
-    const errorOccurrenceElement = document.getElementById("errorOccurrence");
-    if (errorOccurrenceElement && errorOccurrenceElement.value === "none") {
-        if (!errorState.errorOccurrence) {
-            errorCount += 1;
-            errorState.errorOccurrence = true;
-        }
-    } else {
-        if (errorState.errorOccurrence) {
-            errorCount -= 1;
-            errorState.errorOccurrence = false;
-        }
-    }
-    updateErrorBubble(errorCount);
-}
-
-// Fonction pour vérifier une exigence de texte
-function otherText(inputElement, prefix) {
-    if (inputElement) {
-        const text = inputElement.value.trim();
-        if (!text.startsWith(prefix)) {
-            if (!errorState.otherText) {
-                errorCount += 1;
-                errorState.otherText = true;
-            }
-        } else {
-            if (errorState.otherText) {
-                errorCount -= 1;
-                errorState.otherText = false;
-            }
-        }
-    }
-    updateErrorBubble(errorCount);
-}
-
-// Fonction pour initialiser les écouteurs d'événements
-function initializeEventListeners() {
-    const labelsElement = document.getElementById("labels-field");
-    const variant2Element = document.getElementById("variant2");
-    const errorOccurrenceElement = document.getElementById("errorOccurrence");
-    const exampleTextElement = document.getElementById("exampleText"); // Exemple de champ texte
-
-    if (labelsElement) {
-        labelsElement.addEventListener("change", categorization);
-    }
-
-    if (variant2Element) {
-        variant2Element.addEventListener("change", variant2);
-    }
-
-    if (errorOccurrenceElement) {
-        errorOccurrenceElement.addEventListener("change", errorOccurrence);
-    }
-
-    if (exampleTextElement) {
-        exampleTextElement.addEventListener("input", () => {
-            otherText(exampleTextElement, "[TestSuitaName]:"); 
-        });
-    }
-}
-
-function createBubbleChat() {
-    // Vérifie si la bulle existe déjà
-    if (document.getElementById("chatBubble")) {
-        const existingBubble = document.getElementById("chatBubble");
-        existingBubble.style.display = "flex"; // S'assurer que la bulle est visible
-        existingBubble.style.visibility = "visible";
-        return existingBubble;
-    }
-    
-    // Créer la bulle de chat
-    const chatBubble = document.createElement("div");
-    chatBubble.id = "chatBubble";
-    Object.assign(chatBubble.style, {
-        position: "fixed",
-        bottom: "20px",
-        right: "20px",
-        width: "60px",
-        height: "60px",
-        backgroundColor: "transparent", // Arrière-plan transparent
-        color: "white",
-        borderRadius: "50%",
-        boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        transition: "all 0.3s ease",
-        zIndex: "2147483647", // Maximum z-index pour être au-dessus de tout
-        border: "none",
-        cursor: "pointer",
-        background: "transparent",
-        visibility: "visible"
-    });
-
-    // Contenu - image qui occupe toute la bulle
-    const content = document.createElement("div");
-    content.id = "chatBubbleContent";
-    content.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        height: 100%;
-        border-radius: 50%;
-        overflow: hidden;
-    `;
-
-    // Image PNG plein écran
-    const chatImage = document.createElement("img");
-    chatImage.src = chrome.runtime.getURL("chat.png");
-    chatImage.style.cssText = `
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 50%;
-    `;
-    
-    content.appendChild(chatImage);
-    chatBubble.appendChild(content);
-
-    // Bouton de fermeture
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "✖";
-    closeBtn.style.cssText = `
-        position: absolute;
-        top: 0px;
-        right: 0px;
-        width: 18px;
-        height: 18px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        transform: translate(50%, -50%);
-        z-index: 10001;
-    `;
-    closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        chatBubble.style.display = "none";
-        
-        // Stocker l'état dans le localStorage
-        localStorage.setItem("chatBubbleHidden", "true");
-        
-        // Réafficher après 1 heure
-        setTimeout(() => {
-            chatBubble.style.display = "flex";
-            localStorage.removeItem("chatBubbleHidden");
-        }, 3600000);
-    });
-    chatBubble.appendChild(closeBtn);
-    
-    // Important: Ajouter au document AVANT de créer le conteneur de chat
-    document.body.appendChild(chatBubble);
-
-    // Conteneur de chat
-    const chatContainer = document.createElement("div");
-    chatContainer.id = "chatBotContainer";
-    Object.assign(chatContainer.style, {
-        position: "fixed",
-        bottom: "90px",
-        right: "20px",
-        width: "350px",
-        height: "500px",
-        backgroundColor: "white",
-        boxShadow: "0 0 10px rgba(0,0,0,0.3)",
-        borderRadius: "10px",
-        overflow: "hidden",
-        display: "none",
-        zIndex: "9999"
-    });
-
-    // Iframe pour le chat
-    const iframe = document.createElement("iframe");
-    iframe.src = "http://localhost:8501"; // Changez cette URL pour la production
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    iframe.style.border = "none";
-
-    chatContainer.appendChild(iframe);
-    document.body.appendChild(chatContainer);
-
-    // Toggle du chat en cliquant sur la bulle
-    let chatVisible = false;
-    chatBubble.addEventListener("click", () => {
-        chatVisible = !chatVisible;
-        chatContainer.style.display = chatVisible ? "block" : "none";
-        
-        // Effet visuel pour montrer l'état actif
-        if (chatVisible) {
-            chatBubble.style.boxShadow = "0 0 15px rgba(0,0,0,0.25)";
-            chatBubble.style.transform = "scale(1.05)";
-        } else {
-            chatBubble.style.boxShadow = "0 2px 10px rgba(0,0,0,0.15)";
-            chatBubble.style.transform = "scale(1)";
-        }
-    });
-
-    // Vérifier si la bulle était précédemment cachée
-    if (localStorage.getItem("chatBubbleHidden") === "true") {
-        chatBubble.style.display = "none";
-    } else {
-        // Ajouter un effet d'apparition
-        chatBubble.style.transform = "scale(0)";
-        setTimeout(() => {
-            chatBubble.style.transform = "scale(1)";
-        }, 100);
-    }
-
-    console.log("Chat bubble created and added to DOM with id:", chatBubble.id);
-    return chatBubble;
-}
-
-// Écouter les messages de l'extension
-function setupExtensionListener() {
-    // S'assurer que chrome.runtime est disponible
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-        chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-            if (message.action === "toggleChatBubble") {
-                const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
-                const chatContainer = document.getElementById("chatBotContainer");
-                
-                // Afficher la bulle si elle était cachée
-                if (chatBubble.style.display === "none") {
-                    chatBubble.style.display = "flex";
-                    localStorage.removeItem("chatBubbleHidden");
-                    
-                    // Effet d'apparition
-                    chatBubble.style.transform = "scale(0)";
-                    setTimeout(() => {
-                        chatBubble.style.transform = "scale(1)";
-                    }, 100);
-                }
-                
-                // Ouvrir automatiquement la fenêtre de chat
-                chatContainer.style.display = "block";
-                chatBubble.style.transform = "scale(1.05)";
-                
-                sendResponse({success: true});
-                return true; // Important pour les réponses asynchrones
-            }
-        });
-    } else {
-        console.warn("Chrome runtime not available for extension messaging");
-    }
-}
-
-// Exposer la fonction globalement pour pouvoir l'appeler depuis l'extérieur
-window.createBubbleChat = createBubbleChat;
-
-// Initialiser les fonctionnalités de chat
-document.addEventListener("DOMContentLoaded", () => {
-    setupExtensionListener();
-});
-
-// Si le document est déjà chargé
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    setupExtensionListener();
-}
-
-// Fonction d'initialisation pour appeler createBubbleChat et setupExtensionListener
-function initializeChatFeatures() {
-    try {
-        // Créer la bulle de chat immédiatement
-        const chatBubble = createBubbleChat();
-        console.log("Chat bubble successfully created");
-        
-        // Configurer l'écouteur d'extension
-        setupExtensionListener();
-        
-        console.log("Chat features initialized successfully");
-    } catch (error) {
-        console.error("Failed to initialize chat features:", error);
-    }
-}
-
-
-
-// Fonction pour afficher la bulle de chat (à appeler depuis popup.js)
-function afficherBulle() {
+// Expose functions to window for external access
+window.afficherBulle = function() {
     const chatBubble = document.getElementById("chatBubble") || createBubbleChat();
     const chatContainer = document.getElementById("chatBotContainer");
     
-    // Assurer que la bulle est visible
     chatBubble.style.display = "flex";
     chatBubble.style.visibility = "visible";
     localStorage.removeItem("chatBubbleHidden");
     
-    // Effet d'apparition
+    // Animation effect
     chatBubble.style.transform = "scale(0)";
     setTimeout(() => {
         chatBubble.style.transform = "scale(1)";
     }, 100);
     
-    // Ouvrir automatiquement la fenêtre de chat
     chatContainer.style.display = "block";
     chatBubble.style.transform = "scale(1.05)";
     
     return true;
-}
- 
-window.afficherBulle = afficherBulle;
+};
 
-document.addEventListener("DOMContentLoaded", initializeChatFeatures);
-window.addEventListener("load", initializeChatFeatures);
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    setTimeout(initializeChatFeatures, 100);
-}
-window.afficherBulle = afficherBulle;
-
-document.addEventListener("DOMContentLoaded", initializeChatFeatures);
-window.addEventListener("load", initializeChatFeatures);
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    setTimeout(initializeChatFeatures, 100);
-}
-
-document.addEventListener("DOMContentLoaded", initializeChatFeatures);
-window.addEventListener("load", initializeChatFeatures);
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    setTimeout(initializeChatFeatures, 100);
-}
-document.addEventListener("DOMContentLoaded", function() {
-    createBubbleChat();
-    setupExtensionListener();
-});
-document.addEventListener("DOMContentLoaded", () => {
-   try { 
-
-    createErrorBubble();
-    updateErrorBubble(0);
-    
-    // Set up validators
-    const prioritySelect = document.getElementById("priority-val");
-    const componentsSelect = document.getElementById("components-field");
-    const versionSelect = document.getElementById("versions-field");
-
-    if (prioritySelect) {
-        prioritySelect.addEventListener("change", checkPriority);
-    }
-    if (componentsSelect) {
-        componentsSelect.addEventListener("change", checkComponents);
-    }
-    if (versionSelect) {
-        versionSelect.addEventListener("change", checkVersion);
-    }
-
-    // Vérifier les valeurs initiales au chargement
-    if (prioritySelect && prioritySelect.value === "none") {
-        errorCount += 1;
-        errorFlags.priority = true;
-    }
-    if (componentsSelect && componentsSelect.value === "none") {
-        errorCount += 1;
-        errorFlags.components = true;
-    }
-    if (versionSelect && versionSelect.value === "none") {
-        errorCount += 1;
-        errorFlags.version = true;
-    }
-    
-    updateErrorBubble(errorCount);
-    
-    // Initialize additional validators
-    variant();
-    initializeEventListeners();
-    categorization();
-    variant2();
-    errorOccurrence();
-    otherText(document.getElementById("exampleText"), "[TestSuitaName]:");
-    
-
-} catch (error) {
-    console.error("Error during initialization:", error);
-  }
-
-});
-// Add this just before the end of your script to ensure it's called
+// Set up observers for DOM changes
 window.addEventListener('load', () => {
     try {
-      const chatBubble = createBubbleChat();
-      console.log("Chat bubble visibility:", chatBubble.style.visibility);
-console.log("Chat bubble display:", chatBubble.style.display);
-console.log("Chat bubble z-index:", chatBubble.style.zIndex);
+        const chatBubble = createBubbleChat();
+        console.log("Chat bubble visibility:", chatBubble.style.visibility);
+        console.log("Chat bubble display:", chatBubble.style.display);
+        console.log("Chat bubble z-index:", chatBubble.style.zIndex);
     } catch (error) {
-      console.error("Failed to create chat bubble:", error);
+        console.error("Failed to create chat bubble:", error);
     }
-  });
-console.log("✅ content.js chargé!");
-console.log("Script execution completed, bubble should be visible");
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "toggleChatBubble") {
-      const bubble = createBubbleChat();
-      sendResponse({ success: true, bubbleId: bubble.id });
-      return true; // Indicates you wish to send a response asynchronously
-    }
-  });
-// Function to disable/enable the create button based on error count
-function updateCreateButton() {
-    const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
-    
-    if (createButton) {
-        if (errorCount > 0) {
-            createButton.disabled = true;
-            createButton.style.opacity = "0.5";
-            createButton.style.cursor = "not-allowed";
-            
-            // Add a title attribute to explain why it's disabled
-            createButton.setAttribute("title", "Please fix all errors before submitting");
-        } else {
-            createButton.disabled = false;
-            createButton.style.opacity = "1";
-            createButton.style.cursor = "pointer";
-            createButton.removeAttribute("title");
-        }
-    }
-}
-
-// Update the error bubble function to also update the button state
-function updateErrorBubble(errorCount) {
-    const bubble = document.getElementById("errorBubble") || createErrorBubble();
-    const icon = document.getElementById("bubbleIcon");
-    const text = document.getElementById("errorCount");
-
-    if (errorCount > 0) {
-        // If errors are detected
-        Object.assign(bubble.style, {
-            backgroundColor: "#ff4444",
-            borderColor: "#ff0000",
-            boxShadow: "0 2px 15px rgba(255,0,0,0.3), 0 0 5px rgba(255,150,150,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,100,100,0.9), rgba(255,50,50,1))"
-        });
-        
-        // Hide the icon
-        if (icon) {
-            icon.style.display = "none";
-        }
-        
-        // Show the text with the error count and ensure it's centered
-        if (text) {
-            text.style.display = "flex";
-            text.textContent = errorCount.toString();
-            
-            // Ajustement supplémentaire pour les grands nombres
-            if (errorCount > 9) {
-                text.style.fontSize = "14px";
-            } else {
-                text.style.fontSize = "16px";
-            }
-        }
-        
-        // Add a pulsing animation
-        bubble.style.animation = "pulse 2s infinite";
-        if (!document.getElementById("bubbleAnimation")) {
-            const style = document.createElement("style");
-            style.id = "bubbleAnimation";
-            style.textContent = `
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                    100% { transform: scale(1); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    } else {
-        // If no errors are detected
-        Object.assign(bubble.style, {
-            backgroundColor: "rgba(255, 255, 255, 0.9)",
-            borderColor: "transparent",
-            boxShadow: "0 2px 15px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.8) inset",
-            background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(240,240,240,0.9))",
-            animation: "none"
-        });
-        
-        // Show the icon
-        if (icon) {
-            icon.style.display = "block";
-        }
-        
-        // Hide the error count text
-        if (text) {
-            text.style.display = "none";
-        }
-    }
-    
-    // Update the submit button state
-    updateCreateButton();
-}
-
-// Function to set up a MutationObserver to watch for the button
-function preventTicketSubmission() {
-    // First check if the button already exists
-    updateCreateButton();
-    
-    // Then set up an observer to watch for the button if it doesn't exist yet
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length) {
-                // Check if our button has been added
-                const createButton = document.querySelector('button[data-testid="issue-create.common.ui.footer.create-button"]');
-                if (createButton) {
-                    updateCreateButton();
-                }
-            }
-        });
-    });
-    
-    // Watch for changes in the DOM where the button might be added
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-}
-
-// Call this function during initialization
-document.addEventListener("DOMContentLoaded", () => {
-    preventTicketSubmission();
 });
 
-// Update all places where errorCount changes
-function showUniqueError(input, message) {
-    // If this message is already displayed, don't duplicate it
-    if (activeAlerts.has(message)) {
-        return;
-    }
-    
-    activeAlerts.add(message);
-    showError(input, message);
-    
-    // Remove from tracker after display delay
-    setTimeout(() => {
-        activeAlerts.delete(message);
-    }, 5000);
-    
-    // Update the button state whenever errors are shown
-    updateCreateButton();
-}
+// Setup a DOM observer to initialize autocomplete when summary field is added dynamically
+setupDOMObserver(
+    initSummaryAutocomplete,
+    '#summary, input[name="summary"], .summary-field'
+);
 
-// Update in the checkText function as well
-function checkText(input) {
-    const text = input.value.trim();
-    const lines = text.split('\n'); 
-    let newErrorCount = 0;
+console.log("✅ content.js chargé!");
+console.log("Script execution completed, bubble should be visible");
 
-    lines.forEach((line, lineIndex) => {
-        if (line.trim() === '') return; // Skip empty lines
-        
-        const errors = validateSegment(line);
-
-        if (errors.length > 0) {
-            newErrorCount += errors.length;
-            errors.forEach((error, errorIndex) => {
-                showUniqueError(input, ` ${error}`);
-            });
-        }
-    });
-
-    // Update the global error count and bubble
-    if (newErrorCount !== errorCount) {
-        errorCount = newErrorCount;
-        updateErrorBubble(errorCount);
-        browserAPI.runtime.sendMessage({ type: "updateErrors", count: errorCount });
-        console.log("Current error count:", errorCount);
-    }
-
-    return errorCount > 0; // Return boolean indicating if there are errors
-}

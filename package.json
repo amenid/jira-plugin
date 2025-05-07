@@ -38,7 +38,8 @@
     "start": "react-scripts start",
     "start-backend": "cd backend && .venv\\Scripts\\activate && streamlit run chatbot.py",
     "start-all": "npm run build && start npm run start-backend && npm run start",
-    "build": "react-scripts build && copy \"background.js\" \"build\\\"",
+    "build": "npm run build-content && react-scripts build && copy \"background.js\" \"build\\\"",
+    "build-content": "node build-content.js",
     "postbuild": "copy content.js build\\",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
